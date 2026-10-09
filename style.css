@@ -27,7 +27,7 @@ body {
 }
 
 main {
-  /* board side: as big as the column and the screen height allow, so nothing scrolls */
+  /* board side: as jatin mishra  big as the column and the screen height allow, so nothing scrolls */
   --board: max(200px, min(420px, 100vw - 2 * var(--panel-w) - 5rem, 100dvh - 24rem));
   min-width: 0;
   display: flex;
@@ -690,4 +690,83 @@ main .btn {
   .floaters {
     display: none;
   }
+}
+
+/* ---------- online mode ---------- */
+
+.panel .toggle-btn {
+  white-space: nowrap;
+}
+
+.toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.online-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem;
+  background-color: var(--bg);
+  border-radius: 1rem;
+}
+
+.online-box.hide,
+.invite.hide {
+  display: none;
+}
+
+.online-box h3 {
+  font-size: 1rem;
+}
+
+.online-box p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.invite input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--text);
+  background-color: var(--panel);
+  border: none;
+  border-radius: 0.6rem;
+}
+
+.online-box .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.modal-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+#invite-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+#invite-text {
+  color: var(--muted);
+}
+
+#join-field {
+  width: 100%;
+}
+
+#join-field.hide {
+  display: none;
 }

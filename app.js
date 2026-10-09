@@ -18,6 +18,21 @@ let nameInputs = { O: document.querySelector("#input-o"), X: document.querySelec
 let soundBtn = document.querySelector("#sound-btn");
 let downloadBtns = document.querySelectorAll("#download-btn, #msg-download-btn");
 let confettiCanvas = document.querySelector("#confetti");
+let nameLabels = { O: document.querySelector("#label-o"), X: document.querySelector("#label-x") };
+let onlineBox = document.querySelector("#online-box");
+let onlineNote = document.querySelector("#online-note");
+let inviteEl = document.querySelector("#invite");
+let inviteLink = document.querySelector("#invite-link");
+let copyBtn = document.querySelector("#copy-btn");
+let shareBtn = document.querySelector("#share-btn");
+let leaveBtn = document.querySelector("#leave-btn");
+let inviteModal = document.querySelector("#invite-modal");
+let inviteTitle = document.querySelector("#invite-title");
+let inviteText = document.querySelector("#invite-text");
+let joinField = document.querySelector("#join-field");
+let joinName = document.querySelector("#join-name");
+let inviteYes = document.querySelector("#invite-yes");
+let inviteNo = document.querySelector("#invite-no");
 
 const HUMAN = "O";
 const COMPUTER = "X";
@@ -43,7 +58,7 @@ let timeLeft = 0;
 let turnInterval = null;
 
 const WIN_LINES = ["What a move!", "Too good!", "Champion stuff!", "Unstoppable!", "Clean win!"];
-const LOSE_LINES = ["The computer got you this time.", "So close! Try again.", "Revenge round?"];
+const LOSE_LINES = ["So close! Try again.", "Revenge round?", "The next one is yours!"];
 const DRAW_LINES = ["Nobody blinked.", "Evenly matched!", "One more to settle it?"];
 //each note is [frequency, start, length] in seconds
 const SOUNDS = {
@@ -60,6 +75,20 @@ let streak = { player: "", count: 0 };
 let soundOn = true;
 let audioCtx = null;
 let confettiFrame = null;
+
+//online play: two browsers talk directly, the host plays O and the guest plays X.
+//on this device names.O is always "my name" while online
+const ROOM_PREFIX = "ttt-mca-";
+let online = null; //{ peer, conn, myMark, connected, friend, status, refused } while in online mode
+let pendingConn = null; //a guest the host has not answered yet
+let modalActions = null;
+
+const sendOnline = (message) => {
+  if (online && online.connected) online.conn.send(message);
+};
+
+//true while the board belongs to the other device, or nobody is connected yet
+const isFriendTurn = () => online !== null && (!online.connected || currentPlayer !== online.myMark);
 
 //storage can be blocked (private mode), the game works without it
 const load = (key, fallback) => {
@@ -185,7 +214,8 @@ const buildBoard = () => {
       `Row ${Math.floor(i / size) + 1}, column ${(i % size) + 1}`
     );
     box.addEventListener("click", () => {
-      if (isComputerTurn()) return;
+      if (isComputerTurn() || isFriendTurn()) return;
+      sendOnline({ type: "move", index: i });
       playMove(i);
     });
     gameEl.appendChild(box);
@@ -219,23 +249,31 @@ const emptyCells = (b) => {
 };
 
 const playerName = (player) => {
+  if (online) return player === online.myMark ? names.O || "You" : online.friend || "Friend";
   if (vsComputer && player === COMPUTER) return "Computer";
   if (names[player]) return names[player];
   return vsComputer ? "You" : `Player ${player}`;
 };
 
 const scoreLabel = (player) => {
-  if (!vsComputer && !names[player]) return `Player ${player}`;
+  if (!vsComputer && !online && !names[player]) return `Player ${player}`;
   return `${playerName(player)} (${player})`;
 };
 
 const isComputerTurn = () => vsComputer && currentPlayer === COMPUTER;
 
 const updateStatus = () => {
+  if (online && !online.connected) {
+    statusText.innerText = online.status;
+    statusText.classList.remove("hurry");
+    document.querySelector("#card-o").classList.remove("active");
+    document.querySelector("#card-x").classList.remove("active");
+    return;
+  }
   let text;
   if (isComputerTurn()) {
     text = "Computer is thinking...";
-  } else if (playerName(currentPlayer) === "You") {
+  } else if (playerName(currentPlayer) === "You" || (online && currentPlayer === online.myMark)) {
     text = "Your turn";
   } else {
     text = `${playerName(currentPlayer)}'s turn`;
@@ -269,7 +307,14 @@ const startTurnTimer = () => {
   turnInterval = setInterval(() => {
     timeLeft--;
     if (timeLeft <= 0) {
+      //online, each device times its own player and tells the other about the skip
+      if (isFriendTurn()) {
+        clearInterval(turnInterval);
+        updateStatus();
+        return;
+      }
       currentPlayer = currentPlayer === "O" ? "X" : "O";
+      sendOnline({ type: "skip" });
       beginTurn();
     } else {
       updateStatus();
@@ -279,7 +324,9 @@ const startTurnTimer = () => {
 
 const beginTurn = () => {
   clearInterval(turnInterval);
-  if (isComputerTurn()) {
+  if (online && !online.connected) {
+    updateStatus();
+  } else if (isComputerTurn()) {
     updateStatus();
     timer = setTimeout(computerMove, 450);
   } else {
@@ -327,6 +374,8 @@ const finishGame = (pattern) => {
     let text = name === "You" ? "You win!" : `${name} wins!`;
     if (vsComputer && winner === COMPUTER) {
       showResult(text, "🤖", randomFrom(LOSE_LINES), "lose");
+    } else if (online && winner !== online.myMark) {
+      showResult(text, "😢", randomFrom(LOSE_LINES), "lose");
     } else {
       let sub = streak.count >= 2 ? `🔥 ${streak.count} wins in a row!` : randomFrom(WIN_LINES);
       showResult(text, "🏆", sub, "win");
@@ -486,88 +535,171 @@ const roundRect = (ctx, x, y, width, height, radius) => {
   ctx.closePath();
 };
 
+//whose scorecard it is: the person on this device, or both players when they share one
+const scorecardOwner = () => {
+  let played = rounds.length > 0;
+  let mark = online ? online.myMark : vsComputer ? HUMAN : "";
+  if (mark === "") {
+    let leader = scores.O === scores.X ? "" : playerName(scores.O > scores.X ? "O" : "X");
+    let badge = "🎮 READY TO PLAY";
+    if (leader) badge = `🏆 ${leader.toUpperCase()} LEADS`;
+    else if (played) badge = "🤝 ALL LEVEL";
+    return {
+      mark,
+      name: `${playerName("O")} vs ${playerName("X")}`,
+      initial: "VS",
+      label: "M A T C H   B E T W E E N",
+      badge,
+      stat: ["Leader", leader || "-"],
+    };
+  }
+  let mine = scores[mark];
+  let theirs = scores[mark === "O" ? "X" : "O"];
+  let name = names.O || "Guest Player";
+  let badge = "🎮 READY TO PLAY";
+  if (mine > theirs) badge = "🏆 WINNER";
+  else if (mine < theirs) badge = "💪 RUNNER-UP";
+  else if (played) badge = "🤝 ALL LEVEL";
+  return {
+    mark,
+    name,
+    initial: name[0].toUpperCase(),
+    label: "T H I S   S C O R E C A R D   B E L O N G S   T O",
+    badge,
+    stat: ["Win rate", played ? `${Math.round((mine / rounds.length) * 100)}%` : "-"],
+  };
+};
+
 //draws the scorecard on a canvas and saves it as a PNG
 const downloadScorecard = () => {
   const WIDTH = 900;
   const HEIGHT = 1200;
+  const MID = WIDTH / 2;
   const FONT = '"Segoe UI", system-ui, sans-serif';
+  const TEXT = "#f4f1de";
+  const MUTED = "#a9c4c4";
+  const ACCENT = "#2ec4b6";
+  const PANEL = "#1b4a52";
+  const MARK_COLORS = { O: "#ffd166", X: "#ef6f6c", draw: MUTED };
+  let owner = scorecardOwner();
   let canvas = document.createElement("canvas");
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
   let ctx = canvas.getContext("2d");
-  const write = (text, x, y, font, color, align = "center") => {
+  ctx.textAlign = "center";
+  //maxWidth squeezes long text instead of letting it run off the card
+  const write = (text, x, y, font, color, maxWidth) => {
     ctx.font = `${font} ${FONT}`;
     ctx.fillStyle = color;
-    ctx.textAlign = align;
-    ctx.fillText(text, x, y);
+    ctx.fillText(text, x, y, maxWidth);
   };
 
   let bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   bg.addColorStop(0, "#1f5660");
-  bg.addColorStop(1, "#12343b");
+  bg.addColorStop(1, "#0d272c");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.globalAlpha = 0.06;
+  write("X", 120, 360, "700 280px", MARK_COLORS.X);
+  write("O", 780, 1060, "700 280px", MARK_COLORS.O);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(46, 196, 182, 0.5)";
+  ctx.lineWidth = 3;
+  roundRect(ctx, 24, 24, WIDTH - 48, HEIGHT - 48, 36);
+  ctx.stroke();
 
-  write("TIC TAC TOE", WIDTH / 2, 120, "700 68px", "#f4f1de");
-  write("S C O R E   C A R D", WIDTH / 2, 170, "600 24px", "#2ec4b6");
+  write("TIC TAC TOE", MID, 112, "700 60px", TEXT);
+  write("S C O R E   C A R D", MID, 152, "600 22px", ACCENT);
 
-  let panels = [
-    { player: "O", x: 60, color: "#ffd166" },
-    { player: "X", x: 470, color: "#ef6f6c" },
-  ];
-  for (let { player, x, color } of panels) {
-    ctx.fillStyle = "#1b4a52";
-    roundRect(ctx, x, 230, 370, 290, 28);
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    write(playerName(player), x + 185, 295, "600 36px", "#f4f1de");
-    write(`playing ${player}`, x + 185, 335, "400 22px", "#a9c4c4");
-    write(scores[player], x + 185, 475, "700 130px", color);
-  }
-
-  ctx.fillStyle = "#1b4a52";
-  roundRect(ctx, 60, 550, 780, 90, 28);
+  //who the card belongs to
+  let ring = ctx.createLinearGradient(MID - 50, 185, MID + 50, 285);
+  ring.addColorStop(0, MARK_COLORS.O);
+  ring.addColorStop(1, ACCENT);
+  ctx.fillStyle = ring;
+  ctx.beginPath();
+  ctx.arc(MID, 235, 50, 0, Math.PI * 2);
   ctx.fill();
-  write(`Draws: ${scores.draw}`, 250, 606, "600 30px", "#f4f1de");
-  write(`Rounds played: ${rounds.length}`, 630, 606, "600 30px", "#f4f1de");
+  if (owner.initial.length > 1) write(owner.initial, MID, 247, "700 34px", "#06282c");
+  else write(owner.initial, MID, 253, "700 52px", "#06282c");
+  write(owner.label, MID, 325, "600 17px", MUTED);
+  write(owner.name, MID, 388, "700 58px", MARK_COLORS.O, 760);
+  ctx.font = `700 22px ${FONT}`;
+  let badgeWidth = ctx.measureText(owner.badge).width + 64;
+  ctx.fillStyle = "rgba(46, 196, 182, 0.18)";
+  roundRect(ctx, MID - badgeWidth / 2, 412, badgeWidth, 48, 24);
+  ctx.fill();
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  write(owner.badge, MID, 444, "700 22px", ACCENT);
 
-  let verdict = "No rounds played yet";
-  if (scores.O !== scores.X) {
-    let leader = playerName(scores.O > scores.X ? "O" : "X");
-    verdict = leader === "You" ? "You are leading!" : `${leader} is leading!`;
-  } else if (rounds.length > 0) {
-    verdict = "It's all level!";
+  //the two scores, the owner's side is brighter
+  for (let [player, x] of [["O", 60], ["X", 470]]) {
+    let own = player === owner.mark;
+    ctx.fillStyle = own ? "#256069" : PANEL;
+    roundRect(ctx, x, 490, 370, 230, 28);
+    ctx.fill();
+    ctx.strokeStyle = MARK_COLORS[player];
+    ctx.lineWidth = own ? 6 : 3;
+    ctx.stroke();
+    write(own ? owner.name : playerName(player), x + 185, 545, "600 32px", TEXT, 330);
+    write(`playing ${player}`, x + 185, 578, "400 20px", MUTED);
+    write(scores[player], x + 185, 695, "700 110px", MARK_COLORS[player]);
   }
-  write(verdict, WIDTH / 2, 730, "700 44px", "#2ec4b6");
+  ctx.fillStyle = "#12343b";
+  ctx.beginPath();
+  ctx.arc(MID, 605, 30, 0, Math.PI * 2);
+  ctx.fill();
+  write("VS", MID, 612, "700 20px", TEXT);
 
-  let recent = rounds.slice(-6);
-  let firstRound = rounds.length - recent.length + 1;
-  recent.forEach((result, i) => {
-    let text = result === "draw" ? "Draw" : `${playerName(result)} won`;
-    write(`Round ${firstRound + i}  -  ${text}`, WIDTH / 2, 800 + i * 44, "400 26px", "#f4f1de");
+  let stats = [["Rounds", rounds.length], ["Draws", scores.draw], owner.stat];
+  stats.forEach(([label, value], i) => {
+    let x = 60 + i * 267;
+    ctx.fillStyle = PANEL;
+    roundRect(ctx, x, 750, 246, 100, 22);
+    ctx.fill();
+    write(value, x + 123, 798, "700 34px", TEXT, 220);
+    write(label, x + 123, 830, "400 18px", MUTED);
   });
 
-  let mode = vsComputer ? `vs Computer (${difficulty})` : "2 Players";
-  write(`${size} x ${size} board  |  ${mode}`, WIDTH / 2, 1100, "400 24px", "#a9c4c4");
-  write(new Date().toLocaleString(), WIDTH / 2, 1136, "400 22px", "#a9c4c4");
-  write("Tic Tac Toe by Jatin Mishra", WIDTH / 2, 1172, "400 20px", "#a9c4c4");
+  //one coloured dot per round, newest on the right
+  write("L A S T   R O U N D S", MID, 905, "600 17px", MUTED);
+  let recent = rounds.slice(-10);
+  if (recent.length === 0) write("No rounds played yet", MID, 962, "400 24px", TEXT);
+  recent.forEach((result, i) => {
+    let x = MID - (recent.length - 1) * 31 + i * 62;
+    ctx.fillStyle = MARK_COLORS[result];
+    ctx.beginPath();
+    ctx.arc(x, 955, 24, 0, Math.PI * 2);
+    ctx.fill();
+    write(result === "draw" ? "=" : result, x, 964, "700 26px", "#06282c");
+  });
+
+  let mode = online ? "Online match" : vsComputer ? `vs Computer (${difficulty})` : "2 Players";
+  write(`${size} x ${size} board  |  ${mode}`, MID, 1050, "400 24px", TEXT);
+  write(new Date().toLocaleString(), MID, 1084, "400 20px", MUTED);
+  write("tic-tac-toe-game-mca.netlify.app", MID, 1128, "600 22px", ACCENT);
+  write("Made by Jatin Mishra", MID, 1158, "400 18px", MUTED);
 
   canvas.toBlob((blob) => {
     let link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `tictactoe-scorecard-${Date.now()}.png`;
+    link.download = `scorecard-${owner.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`;
     link.click();
     URL.revokeObjectURL(link.href);
   });
 };
 
-//the X name is the computer's while playing against it
+//the X box shows the computer or the online friend, who can't be renamed from here
 const syncNameInputs = () => {
   nameInputs.O.value = names.O;
-  nameInputs.X.value = vsComputer ? "Computer" : names.X;
-  nameInputs.X.disabled = vsComputer;
+  nameInputs.X.value = vsComputer ? "Computer" : online ? online.friend : names.X;
+  nameInputs.X.disabled = vsComputer || online !== null;
+  nameLabels.O.innerText = online ? `Your name (${online.myMark})` : "Player O";
+  nameLabels.X.innerText = online ? "Friend" : "Player X";
+  //only the host picks the board and timer
+  let guest = online !== null && online.myMark === "X";
+  [...sizeBtns, ...timerBtns].forEach((btn) => (btn.disabled = guest));
 };
 
 const updateSoundBtn = () => {
@@ -583,6 +715,11 @@ const setActive = (btns, activeBtn) => {
 
 modeBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
+    if (btn.dataset.mode === "online") {
+      if (!online) enterOnline();
+      return;
+    }
+    leaveOnline();
     vsComputer = btn.dataset.mode === "cpu";
     setActive(modeBtns, btn);
     levelToggle.classList.toggle("hide", !vsComputer);
@@ -609,6 +746,7 @@ sizeBtns.forEach((btn) => {
     buildBoard();
     resetScores();
     startRound();
+    sendOnline({ type: "config", size, turnSeconds, startingPlayer });
   });
 });
 
@@ -617,18 +755,30 @@ timerBtns.forEach((btn) => {
     turnSeconds = Number(btn.dataset.seconds);
     setActive(timerBtns, btn);
     startRound();
+    sendOnline({ type: "config", size, turnSeconds, startingPlayer });
   });
 });
 
-newGameBtn.addEventListener("click", newGame);
-resetBtn.addEventListener("click", resetGame);
-scoreResetBtn.addEventListener("click", resetScores);
+//online, the friend's device repeats whatever these buttons do
+newGameBtn.addEventListener("click", () => {
+  newGame();
+  sendOnline({ type: "round", startingPlayer });
+});
+resetBtn.addEventListener("click", () => {
+  resetGame();
+  sendOnline({ type: "round", startingPlayer });
+});
+scoreResetBtn.addEventListener("click", () => {
+  resetScores();
+  sendOnline({ type: "scores" });
+});
 downloadBtns.forEach((btn) => btn.addEventListener("click", downloadScorecard));
 
 for (let player of ["O", "X"]) {
   nameInputs[player].addEventListener("input", () => {
     names[player] = nameInputs[player].value.trim();
     save(`ttt-name-${player}`, names[player]);
+    if (player === "O") sendOnline({ type: "name", name: names.O });
     updateScores();
     if (!gameOver) updateStatus();
   });
@@ -697,6 +847,275 @@ const buildFloaters = () => {
   }
 };
 
+const cleanName = (value) => String(value ?? "").trim().slice(0, 12);
+
+const clearRoomFromUrl = () => history.replaceState(null, "", location.pathname);
+
+//note goes in the setup panel, status is the short line above the board
+const setNote = (note, status) => {
+  online.status = status;
+  onlineNote.innerText = note;
+  if (!online.connected) updateStatus();
+};
+
+//one popup for both sides: the guest's "send request" and the host's "accept"
+const askModal = ({ title, text, yes, no, withName, onYes, onNo }) => {
+  inviteTitle.innerText = title;
+  inviteText.innerText = text;
+  inviteYes.innerText = yes;
+  inviteNo.innerText = no;
+  joinField.classList.toggle("hide", !withName);
+  modalActions = { onYes, onNo };
+  inviteModal.classList.remove("hide");
+};
+
+inviteYes.addEventListener("click", () => {
+  inviteModal.classList.add("hide");
+  modalActions.onYes();
+});
+inviteNo.addEventListener("click", () => {
+  inviteModal.classList.add("hide");
+  modalActions.onNo();
+});
+
+const startMatch = () => {
+  setNote(`Connected with ${playerName(online.myMark === "O" ? "X" : "O")}. Have fun!`, "");
+  inviteEl.classList.add("hide");
+  closePanels();
+  syncNameInputs();
+  startingPlayer = "O";
+  resetScores();
+  startRound();
+};
+
+const applyConfig = (message) => {
+  if ([3, 4, 5].includes(message.size) && message.size !== size) {
+    size = message.size;
+    buildBoard();
+    resetScores();
+  }
+  if ([0, 5, 10].includes(message.turnSeconds)) turnSeconds = message.turnSeconds;
+  sizeBtns.forEach((btn) => btn.classList.toggle("active", Number(btn.dataset.size) === size));
+  timerBtns.forEach((btn) => btn.classList.toggle("active", Number(btn.dataset.seconds) === turnSeconds));
+  startingPlayer = message.startingPlayer === "X" ? "X" : "O";
+};
+
+const connectionClosed = (conn) => {
+  if (conn === pendingConn) {
+    pendingConn = null;
+    inviteModal.classList.add("hide");
+  }
+  if (!online || conn !== online.conn) return;
+  online.connected = false;
+  online.conn = null;
+  online.friend = "";
+  stopTimers();
+  if (online.myMark === "O") {
+    inviteEl.classList.remove("hide");
+    setNote("Your friend left. Share the link to play again.", "Waiting for a friend to join...");
+  } else if (!online.refused) {
+    setNote("The connection to your friend was lost. Ask for a new link to play again.", "Disconnected");
+  }
+  syncNameInputs();
+  updateScores();
+};
+
+//everything the other device can tell us
+const handleMessage = (message) => {
+  if (!online || !message) return;
+  if (!online.connected) {
+    if (online.myMark !== "X") return;
+    if (message.type === "accept") {
+      online.connected = true;
+      online.friend = cleanName(message.name);
+      applyConfig(message);
+      startMatch();
+    } else if (message.type === "decline" || message.type === "busy") {
+      online.refused = true;
+      let busy = message.type === "busy";
+      setNote(
+        busy ? "This room already has two players." : "Your friend declined the request.",
+        busy ? "Room is full" : "Request declined"
+      );
+    }
+    return;
+  }
+  switch (message.type) {
+    case "move":
+      if (currentPlayer !== online.myMark) playMove(message.index);
+      break;
+    case "skip":
+      if (currentPlayer !== online.myMark && !gameOver) {
+        currentPlayer = online.myMark;
+        beginTurn();
+      }
+      break;
+    case "round":
+      startingPlayer = message.startingPlayer === "X" ? "X" : "O";
+      startRound();
+      break;
+    case "scores":
+      resetScores();
+      break;
+    case "config":
+      if (online.myMark === "X") {
+        applyConfig(message);
+        startRound();
+      }
+      break;
+    case "name":
+      online.friend = cleanName(message.name);
+      syncNameInputs();
+      updateScores();
+      if (!gameOver) updateStatus();
+      break;
+    case "bye":
+      connectionClosed(online.conn);
+      break;
+  }
+};
+
+const onlineError = (peer, err) => {
+  if (!online || online.peer !== peer || online.connected) return;
+  if (err.type === "peer-unavailable") {
+    online.refused = true;
+    setNote("This invite link is no longer active. Ask your friend for a new one.", "Link expired");
+  } else {
+    setNote("Could not connect. Check your internet and try again.", "Not connected");
+  }
+};
+
+//host: open a room and wait for a friend's request
+const hostRoom = () => {
+  let code = Math.random().toString(36).slice(2, 8);
+  setNote("Creating your room...", "Creating your room...");
+  let peer = (online.peer = new Peer(ROOM_PREFIX + code));
+  peer.on("open", () => {
+    if (!online || online.peer !== peer) return;
+    inviteLink.value = `${location.origin}${location.pathname}?room=${code}`;
+    inviteEl.classList.remove("hide");
+    setNote(
+      "Send this link to a friend. The match starts when you accept their request.",
+      "Waiting for a friend to join..."
+    );
+  });
+  peer.on("connection", (conn) => {
+    conn.on("data", (message) => {
+      if (!online || online.peer !== peer || !message) return;
+      if (conn === online.conn) return handleMessage(message);
+      if (message.type !== "join") return;
+      if (online.connected || pendingConn) return conn.send({ type: "busy" });
+      let friend = cleanName(message.name);
+      pendingConn = conn;
+      askModal({
+        title: `${friend || "A friend"} wants to play`,
+        text: "Accept the request to start the match.",
+        yes: "Accept",
+        no: "Decline",
+        withName: false,
+        onYes: () => {
+          pendingConn = null;
+          online.conn = conn;
+          online.connected = true;
+          online.friend = friend;
+          startingPlayer = "O";
+          conn.send({ type: "accept", name: names.O, size, turnSeconds, startingPlayer });
+          startMatch();
+        },
+        onNo: () => {
+          pendingConn = null;
+          conn.send({ type: "decline" });
+        },
+      });
+    });
+    conn.on("close", () => connectionClosed(conn));
+  });
+  //the room stays listed only while the link to the server is up
+  peer.on("disconnected", () => {
+    if (!peer.destroyed) peer.reconnect();
+  });
+  peer.on("error", (err) => {
+    if (err.type === "unavailable-id" && online && online.peer === peer) {
+      peer.destroy();
+      hostRoom();
+    } else {
+      onlineError(peer, err);
+    }
+  });
+};
+
+//guest: connect to the host's room and ask to play
+const joinRoom = (code) => {
+  setNote("Connecting to your friend...", "Connecting...");
+  let peer = (online.peer = new Peer());
+  peer.on("open", () => {
+    if (!online || online.peer !== peer) return;
+    let conn = (online.conn = peer.connect(ROOM_PREFIX + code, { reliable: true }));
+    conn.on("open", () => {
+      conn.send({ type: "join", name: names.O });
+      setNote("Request sent. The match starts when your friend accepts.", "Waiting for your friend to accept...");
+    });
+    conn.on("data", handleMessage);
+    conn.on("close", () => connectionClosed(conn));
+  });
+  peer.on("error", (err) => onlineError(peer, err));
+};
+
+const enterOnline = (joinCode) => {
+  vsComputer = false;
+  online = { peer: null, conn: null, myMark: joinCode ? "X" : "O", connected: false, friend: "", status: "", refused: false };
+  modeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === "online"));
+  levelToggle.classList.add("hide");
+  onlineBox.classList.remove("hide");
+  inviteEl.classList.add("hide");
+  syncNameInputs();
+  startingPlayer = "O";
+  resetScores();
+  startRound();
+  if (typeof Peer === "undefined") {
+    setNote("Online play needs internet. Reload the page and try again.", "Not connected");
+  } else if (joinCode) {
+    joinRoom(joinCode);
+  } else {
+    hostRoom();
+  }
+};
+
+const leaveOnline = () => {
+  if (!online) return;
+  sendOnline({ type: "bye" });
+  let peer = online.peer;
+  online = null;
+  pendingConn = null;
+  if (peer) peer.destroy();
+  onlineBox.classList.add("hide");
+  inviteModal.classList.add("hide");
+  clearRoomFromUrl();
+};
+
+leaveBtn.addEventListener("click", () => modeBtns[0].click());
+window.addEventListener("pagehide", () => sendOnline({ type: "bye" }));
+
+copyBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(inviteLink.value);
+    copyBtn.innerText = "Copied!";
+    setTimeout(() => (copyBtn.innerText = "Copy link"), 1500);
+  } catch {
+    //no clipboard access: select it so the player can copy by hand
+    inviteLink.select();
+  }
+});
+
+if (navigator.share) {
+  shareBtn.classList.remove("hide");
+  shareBtn.addEventListener("click", () => {
+    navigator
+      .share({ title: "Tic Tac Toe", text: "Play Tic Tac Toe with me!", url: inviteLink.value })
+      .catch(() => {});
+  });
+}
+
 startSlider();
 buildFloaters();
 
@@ -709,3 +1128,22 @@ updateSoundBtn();
 buildBoard();
 updateScores();
 startRound();
+
+//opened from a friend's invite link
+let invitedRoom = new URLSearchParams(location.search).get("room");
+if (/^[a-z0-9]{4,10}$/.test(invitedRoom || "")) {
+  joinName.value = names.O;
+  askModal({
+    title: "You're invited!",
+    text: "Enter your name and send a request to play.",
+    yes: "Send request",
+    no: "Not now",
+    withName: true,
+    onYes: () => {
+      names.O = cleanName(joinName.value);
+      save("ttt-name-O", names.O);
+      enterOnline(invitedRoom);
+    },
+    onNo: clearRoomFromUrl,
+  });
+}

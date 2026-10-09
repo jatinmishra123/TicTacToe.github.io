@@ -22,6 +22,22 @@
       </div>
     </div>
 
+    <div class="msg-container hide" id="invite-modal">
+      <div class="msg-card">
+        <span class="modal-emoji" aria-hidden="true">🎮</span>
+        <p id="invite-title"></p>
+        <p id="invite-text"></p>
+        <label class="player-field field-o hide" id="join-field">
+          <span>Your name</span>
+          <input id="join-name" type="text" maxlength="12" placeholder="Enter name" autocomplete="off" />
+        </label>
+        <div class="actions">
+          <button id="invite-yes" class="btn btn-primary">Accept</button>
+          <button id="invite-no" class="btn btn-ghost">Decline</button>
+        </div>
+      </div>
+    </div>
+
     <header class="topbar">
       <button class="icon-btn panel-btn" data-panel="setup-panel" aria-label="Game setup">⚙️</button>
       <span class="brand"><span class="brand-x">X</span><span class="brand-o">O</span> Tic Tac Toe</span>
@@ -38,11 +54,11 @@
 
         <div class="players">
           <label class="player-field field-o">
-            <span>Player O</span>
+            <span id="label-o">Player O</span>
             <input id="input-o" type="text" maxlength="12" placeholder="Enter name" autocomplete="off" />
           </label>
           <label class="player-field field-x">
-            <span>Player X</span>
+            <span id="label-x">Player X</span>
             <input id="input-x" type="text" maxlength="12" placeholder="Enter name" autocomplete="off" />
           </label>
         </div>
@@ -50,7 +66,8 @@
         <div class="options">
           <div class="toggle" id="mode-toggle">
             <button class="toggle-btn active" data-mode="pvp">2 Players</button>
-            <button class="toggle-btn" data-mode="cpu">vs Computer</button>
+            <button class="toggle-btn" data-mode="cpu">Computer</button>
+            <button class="toggle-btn" data-mode="online">Online</button>
           </div>
           <div class="toggle hide" id="level-toggle">
             <button class="toggle-btn" data-level="easy">Easy</button>
@@ -66,6 +83,19 @@
             <button class="toggle-btn" data-seconds="10">10s</button>
             <button class="toggle-btn" data-seconds="5">5s</button>
           </div>
+        </div>
+
+        <div class="online-box hide" id="online-box">
+          <h3>🌐 Play online</h3>
+          <p id="online-note"></p>
+          <div class="invite hide" id="invite">
+            <input id="invite-link" type="text" readonly aria-label="Invite link" />
+            <div class="actions">
+              <button id="copy-btn" class="btn btn-primary">Copy link</button>
+              <button id="share-btn" class="btn btn-ghost hide">Share</button>
+            </div>
+          </div>
+          <button id="leave-btn" class="btn btn-ghost">Leave online game</button>
         </div>
       </aside>
 
@@ -139,6 +169,11 @@
               <p>Try Easy first, then see if you can hold a draw on Hard.</p>
             </div>
             <div class="slide">
+              <span class="slide-icon" aria-hidden="true">🌐</span>
+              <h3>Play online</h3>
+              <p>Pick Online, send your link to a friend and play together.</p>
+            </div>
+            <div class="slide">
               <span class="slide-icon" aria-hidden="true">⏱️</span>
               <h3>Race the clock</h3>
               <p>Turn on the timer - run out of time and you lose your turn.</p>
@@ -156,6 +191,8 @@
 
     <div class="backdrop hide"></div>
 
+    <!-- PeerJS connects the two players for online mode -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
