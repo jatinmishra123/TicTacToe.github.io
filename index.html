@@ -42,6 +42,7 @@
       <button class="icon-btn panel-btn" data-panel="setup-panel" aria-label="Game setup">⚙️</button>
       <span class="brand"><span class="brand-x">X</span><span class="brand-o">O</span> Tic Tac Toe</span>
       <div class="topbar-actions">
+        <button id="chat-btn" class="icon-btn chat-btn hide" aria-label="Chat">💬</button>
         <button class="icon-btn panel-btn" data-panel="about-panel" aria-label="About me">👤</button>
         <button id="sound-btn" class="icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>
       </div>
@@ -187,6 +188,27 @@
           <div class="dots"></div>
         </div>
       </aside>
+    </div>
+
+    <!-- chat with the friend, only during an online match -->
+    <div class="chat hide" id="chat">
+      <div class="chat-head">
+        <span id="chat-title">Chat</span>
+        <button id="chat-close" class="chat-close" aria-label="Close chat">✕</button>
+      </div>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="chat-quick">
+        <button>👍</button>
+        <button>😂</button>
+        <button>😮</button>
+        <button>🔥</button>
+        <button>Nice move!</button>
+        <button>GG!</button>
+      </div>
+      <form id="chat-form">
+        <input id="chat-input" type="text" maxlength="200" placeholder="Type a message" autocomplete="off" aria-label="Message" />
+        <button class="btn btn-primary">Send</button>
+      </form>
     </div>
 
     <div class="backdrop hide"></div>

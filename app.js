@@ -33,6 +33,12 @@ let joinField = document.querySelector("#join-field");
 let joinName = document.querySelector("#join-name");
 let inviteYes = document.querySelector("#invite-yes");
 let inviteNo = document.querySelector("#invite-no");
+let chatBtn = document.querySelector("#chat-btn");
+let chatBox = document.querySelector("#chat");
+let chatTitle = document.querySelector("#chat-title");
+let chatLog = document.querySelector("#chat-log");
+let chatForm = document.querySelector("#chat-form");
+let chatInput = document.querySelector("#chat-input");
 
 const HUMAN = "O";
 const COMPUTER = "X";
@@ -67,6 +73,7 @@ const SOUNDS = {
   win: [[523, 0, 0.12], [659, 0.12, 0.12], [784, 0.24, 0.3]],
   lose: [[392, 0, 0.15], [311, 0.15, 0.15], [262, 0.3, 0.3]],
   draw: [[440, 0, 0.15], [440, 0.2, 0.15]],
+  chat: [[880, 0, 0.07]],
 };
 
 let names = { O: "", X: "" }; //typed by the players, empty = default name
@@ -878,7 +885,71 @@ inviteNo.addEventListener("click", () => {
   modalActions.onNo();
 });
 
+//chat between the two online players
+let unread = 0;
+
+const showUnread = (count) => {
+  unread = count;
+  chatBtn.dataset.unread = count;
+};
+
+const openChat = (open) => {
+  chatBox.classList.toggle("hide", !open);
+  if (!open) return;
+  showUnread(0);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  //on phones focusing would pop the keyboard over the board
+  if (window.matchMedia("(min-width: 960px)").matches) chatInput.focus();
+};
+
+const addChatLine = (text, mine) => {
+  let line = document.createElement("p");
+  line.className = mine ? "chat-line mine" : "chat-line";
+  line.innerText = text;
+  chatLog.appendChild(line);
+  chatLog.scrollTop = chatLog.scrollHeight;
+};
+
+const sendChat = (text) => {
+  text = text.trim().slice(0, 200);
+  if (text === "" || !online || !online.connected) return;
+  sendOnline({ type: "chat", text });
+  addChatLine(text, true);
+};
+
+const receiveChat = (text) => {
+  text = String(text ?? "").trim().slice(0, 200);
+  if (text === "") return;
+  addChatLine(text, false);
+  if (chatBox.classList.contains("hide")) showUnread(unread + 1);
+  playSound("chat");
+};
+
+//the chat button only shows during an online match, and every match starts with an empty chat
+const setChat = (available) => {
+  chatBtn.classList.toggle("hide", !available);
+  showUnread(0);
+  if (available) {
+    chatLog.innerHTML = "";
+    chatTitle.innerText = `Chat with ${online.friend || "Friend"}`;
+  } else {
+    openChat(false);
+  }
+};
+
+chatBtn.addEventListener("click", () => openChat(chatBox.classList.contains("hide")));
+document.querySelector("#chat-close").addEventListener("click", () => openChat(false));
+chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendChat(chatInput.value);
+  chatInput.value = "";
+});
+document.querySelectorAll(".chat-quick button").forEach((btn) => {
+  btn.addEventListener("click", () => sendChat(btn.innerText));
+});
+
 const startMatch = () => {
+  setChat(true);
   setNote(`Connected with ${playerName(online.myMark === "O" ? "X" : "O")}. Have fun!`, "");
   inviteEl.classList.add("hide");
   closePanels();
@@ -910,6 +981,7 @@ const connectionClosed = (conn) => {
   online.conn = null;
   online.friend = "";
   stopTimers();
+  setChat(false);
   if (online.myMark === "O") {
     inviteEl.classList.remove("hide");
     setNote("Your friend left. Share the link to play again.", "Waiting for a friend to join...");
@@ -968,6 +1040,9 @@ const handleMessage = (message) => {
       syncNameInputs();
       updateScores();
       if (!gameOver) updateStatus();
+      break;
+    case "chat":
+      receiveChat(message.text);
       break;
     case "bye":
       connectionClosed(online.conn);
@@ -1090,6 +1165,7 @@ const leaveOnline = () => {
   if (peer) peer.destroy();
   onlineBox.classList.add("hide");
   inviteModal.classList.add("hide");
+  setChat(false);
   clearRoomFromUrl();
 };
 

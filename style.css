@@ -770,3 +770,135 @@ main .btn {
 #join-field.hide {
   display: none;
 }
+
+/* ---------- online chat ---------- */
+
+.chat-btn {
+  position: relative;
+}
+
+/* unread message count */
+.chat-btn[data-unread]:not([data-unread="0"])::after {
+  content: attr(data-unread);
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  color: #fff;
+  background-color: var(--color-x);
+  border-radius: 999px;
+}
+
+.chat {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 9;
+  width: min(92vw, 320px);
+  height: min(70dvh, 420px);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 1.3rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  text-align: left;
+  animation: pop 0.2s ease-out;
+}
+
+.chat.hide {
+  display: none;
+}
+
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  background-color: var(--panel-light);
+}
+
+.chat-close {
+  width: 1.8rem;
+  height: 1.8rem;
+  color: var(--text);
+  background-color: var(--panel);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.chat-log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem;
+  overflow-y: auto;
+}
+
+.chat-line {
+  align-self: flex-start;
+  max-width: 80%;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9rem;
+  background-color: var(--bg);
+  border-radius: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-line.mine {
+  align-self: flex-end;
+  color: #06282c;
+  background-color: var(--accent);
+}
+
+.chat-quick {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  padding: 0 0.6rem 0.5rem;
+}
+
+.chat-quick button {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  background-color: var(--bg);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#chat-form {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background-color: var(--panel-light);
+}
+
+#chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.8rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background-color: var(--bg);
+  border: none;
+  border-radius: 999px;
+}
+
+#chat-form .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
