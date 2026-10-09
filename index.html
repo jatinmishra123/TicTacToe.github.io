@@ -8,25 +8,58 @@
   </head>
   <body>
     <div class="msg-container hide">
-      <p id="msg">Winner</p>
-      <button id="new-btn">New Game</button>
+      <div class="msg-card">
+        <p id="msg">Winner</p>
+        <button id="new-btn" class="btn btn-primary">New Game</button>
+      </div>
     </div>
     <main>
       <h1>Tic Tac Toe</h1>
-      <div class="container">
-        <div class="game">
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
-          <button class="box"></button>
+
+      <div class="options">
+        <div class="toggle" id="mode-toggle">
+          <button class="toggle-btn active" data-mode="pvp">2 Players</button>
+          <button class="toggle-btn" data-mode="cpu">vs Computer</button>
+        </div>
+        <div class="toggle hide" id="level-toggle">
+          <button class="toggle-btn" data-level="easy">Easy</button>
+          <button class="toggle-btn active" data-level="hard">Hard</button>
         </div>
       </div>
-      <button id="reset-btn">Reset Game</button>
+
+      <div class="scoreboard">
+        <div class="score score-o" id="card-o">
+          <span class="score-name" id="name-o">Player O</span>
+          <span class="score-value" id="score-o">0</span>
+        </div>
+        <div class="score score-draw">
+          <span class="score-name">Draws</span>
+          <span class="score-value" id="score-draw">0</span>
+        </div>
+        <div class="score score-x" id="card-x">
+          <span class="score-name" id="name-x">Player X</span>
+          <span class="score-value" id="score-x">0</span>
+        </div>
+      </div>
+
+      <p id="status" aria-live="polite">Player O's turn</p>
+
+      <div class="game">
+        <button class="box" aria-label="Row 1, column 1"></button>
+        <button class="box" aria-label="Row 1, column 2"></button>
+        <button class="box" aria-label="Row 1, column 3"></button>
+        <button class="box" aria-label="Row 2, column 1"></button>
+        <button class="box" aria-label="Row 2, column 2"></button>
+        <button class="box" aria-label="Row 2, column 3"></button>
+        <button class="box" aria-label="Row 3, column 1"></button>
+        <button class="box" aria-label="Row 3, column 2"></button>
+        <button class="box" aria-label="Row 3, column 3"></button>
+      </div>
+
+      <div class="actions">
+        <button id="reset-btn" class="btn btn-primary">Restart Round</button>
+        <button id="score-reset-btn" class="btn btn-ghost">Reset Scores</button>
+      </div>
     </main>
     <script src="app.js"></script>
   </body>
