@@ -122,11 +122,21 @@ h1 {
   font-weight: 600;
 }
 
+#status.hurry {
+  color: var(--color-x);
+}
+
+#rule {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .game {
+  --size: 3;
   width: min(86vw, 400px);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.7rem;
+  grid-template-columns: repeat(var(--size), 1fr);
+  gap: calc(2.1rem / var(--size));
   padding: 0.7rem;
   background-color: var(--panel);
   border-radius: 1.3rem;
@@ -138,7 +148,7 @@ h1 {
   border: none;
   border-radius: 0.9rem;
   background-color: var(--panel-light);
-  font-size: clamp(2.5rem, 13vw, 4.2rem);
+  font-size: calc(min(86vw, 400px) / var(--size) * 0.5);
   font-weight: 700;
   font-family: inherit;
   line-height: 1;

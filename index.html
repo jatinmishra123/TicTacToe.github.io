@@ -25,6 +25,16 @@
           <button class="toggle-btn" data-level="easy">Easy</button>
           <button class="toggle-btn active" data-level="hard">Hard</button>
         </div>
+        <div class="toggle" id="size-toggle">
+          <button class="toggle-btn active" data-size="3">3 x 3</button>
+          <button class="toggle-btn" data-size="4">4 x 4</button>
+          <button class="toggle-btn" data-size="5">5 x 5</button>
+        </div>
+        <div class="toggle" id="timer-toggle">
+          <button class="toggle-btn active" data-seconds="0">No Timer</button>
+          <button class="toggle-btn" data-seconds="10">10s</button>
+          <button class="toggle-btn" data-seconds="5">5s</button>
+        </div>
       </div>
 
       <div class="scoreboard">
@@ -44,17 +54,9 @@
 
       <p id="status" aria-live="polite">Player O's turn</p>
 
-      <div class="game">
-        <button class="box" aria-label="Row 1, column 1"></button>
-        <button class="box" aria-label="Row 1, column 2"></button>
-        <button class="box" aria-label="Row 1, column 3"></button>
-        <button class="box" aria-label="Row 2, column 1"></button>
-        <button class="box" aria-label="Row 2, column 2"></button>
-        <button class="box" aria-label="Row 2, column 3"></button>
-        <button class="box" aria-label="Row 3, column 1"></button>
-        <button class="box" aria-label="Row 3, column 2"></button>
-        <button class="box" aria-label="Row 3, column 3"></button>
-      </div>
+      <p id="rule"></p>
+
+      <div class="game"></div>
 
       <div class="actions">
         <button id="reset-btn" class="btn btn-primary">Restart Round</button>
