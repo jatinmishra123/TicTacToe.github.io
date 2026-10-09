@@ -7,62 +7,155 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <div class="floaters" aria-hidden="true"></div>
+    <canvas id="confetti" aria-hidden="true"></canvas>
+
     <div class="msg-container hide">
       <div class="msg-card">
+        <span id="msg-emoji" aria-hidden="true">🏆</span>
         <p id="msg">Winner</p>
-        <button id="new-btn" class="btn btn-primary">New Game</button>
+        <p id="msg-sub"></p>
+        <div class="actions">
+          <button id="new-btn" class="btn btn-primary">New Game</button>
+          <button id="msg-download-btn" class="btn btn-ghost">Download Scorecard</button>
+        </div>
       </div>
     </div>
-    <main>
-      <h1>Tic Tac Toe</h1>
 
-      <div class="options">
-        <div class="toggle" id="mode-toggle">
-          <button class="toggle-btn active" data-mode="pvp">2 Players</button>
-          <button class="toggle-btn" data-mode="cpu">vs Computer</button>
-        </div>
-        <div class="toggle hide" id="level-toggle">
-          <button class="toggle-btn" data-level="easy">Easy</button>
-          <button class="toggle-btn active" data-level="hard">Hard</button>
-        </div>
-        <div class="toggle" id="size-toggle">
-          <button class="toggle-btn active" data-size="3">3 x 3</button>
-          <button class="toggle-btn" data-size="4">4 x 4</button>
-          <button class="toggle-btn" data-size="5">5 x 5</button>
-        </div>
-        <div class="toggle" id="timer-toggle">
-          <button class="toggle-btn active" data-seconds="0">No Timer</button>
-          <button class="toggle-btn" data-seconds="10">10s</button>
-          <button class="toggle-btn" data-seconds="5">5s</button>
-        </div>
+    <header class="topbar">
+      <button class="icon-btn panel-btn" data-panel="setup-panel" aria-label="Game setup">⚙️</button>
+      <span class="brand"><span class="brand-x">X</span><span class="brand-o">O</span> Tic Tac Toe</span>
+      <div class="topbar-actions">
+        <button class="icon-btn panel-btn" data-panel="about-panel" aria-label="About me">👤</button>
+        <button id="sound-btn" class="icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>
       </div>
+    </header>
 
-      <div class="scoreboard">
-        <div class="score score-o" id="card-o">
-          <span class="score-name" id="name-o">Player O</span>
-          <span class="score-value" id="score-o">0</span>
+    <div class="layout">
+      <aside class="panel panel-left" id="setup-panel">
+        <button class="panel-close" aria-label="Close">✕</button>
+        <h2>Game setup</h2>
+
+        <div class="players">
+          <label class="player-field field-o">
+            <span>Player O</span>
+            <input id="input-o" type="text" maxlength="12" placeholder="Enter name" autocomplete="off" />
+          </label>
+          <label class="player-field field-x">
+            <span>Player X</span>
+            <input id="input-x" type="text" maxlength="12" placeholder="Enter name" autocomplete="off" />
+          </label>
         </div>
-        <div class="score score-draw">
-          <span class="score-name">Draws</span>
-          <span class="score-value" id="score-draw">0</span>
+
+        <div class="options">
+          <div class="toggle" id="mode-toggle">
+            <button class="toggle-btn active" data-mode="pvp">2 Players</button>
+            <button class="toggle-btn" data-mode="cpu">vs Computer</button>
+          </div>
+          <div class="toggle hide" id="level-toggle">
+            <button class="toggle-btn" data-level="easy">Easy</button>
+            <button class="toggle-btn active" data-level="hard">Hard</button>
+          </div>
+          <div class="toggle" id="size-toggle">
+            <button class="toggle-btn active" data-size="3">3 x 3</button>
+            <button class="toggle-btn" data-size="4">4 x 4</button>
+            <button class="toggle-btn" data-size="5">5 x 5</button>
+          </div>
+          <div class="toggle" id="timer-toggle">
+            <button class="toggle-btn active" data-seconds="0">No Timer</button>
+            <button class="toggle-btn" data-seconds="10">10s</button>
+            <button class="toggle-btn" data-seconds="5">5s</button>
+          </div>
         </div>
-        <div class="score score-x" id="card-x">
-          <span class="score-name" id="name-x">Player X</span>
-          <span class="score-value" id="score-x">0</span>
+      </aside>
+
+      <main id="play">
+        <h1>Tic Tac Toe</h1>
+
+        <div class="scoreboard">
+          <div class="score score-o" id="card-o">
+            <span class="score-name" id="name-o">Player O</span>
+            <span class="score-value" id="score-o">0</span>
+          </div>
+          <div class="score score-draw">
+            <span class="score-name">Draws</span>
+            <span class="score-value" id="score-draw">0</span>
+          </div>
+          <div class="score score-x" id="card-x">
+            <span class="score-name" id="name-x">Player X</span>
+            <span class="score-value" id="score-x">0</span>
+          </div>
         </div>
-      </div>
 
-      <p id="status" aria-live="polite">Player O's turn</p>
+        <p id="status" aria-live="polite">Player O's turn</p>
 
-      <p id="rule"></p>
+        <p id="rule"></p>
 
-      <div class="game"></div>
+        <div class="game"></div>
 
-      <div class="actions">
-        <button id="reset-btn" class="btn btn-primary">Restart Round</button>
-        <button id="score-reset-btn" class="btn btn-ghost">Reset Scores</button>
-      </div>
-    </main>
+        <div class="actions">
+          <button id="reset-btn" class="btn btn-primary">Restart</button>
+          <button id="score-reset-btn" class="btn btn-ghost">Reset Scores</button>
+          <button id="download-btn" class="btn btn-ghost">📥 Scorecard</button>
+        </div>
+      </main>
+
+      <aside class="panel panel-right" id="about-panel">
+        <button class="panel-close" aria-label="Close">✕</button>
+
+        <div class="about">
+          <div class="avatar">
+            <!-- put your photo at images/profile.jpg; initials show until it exists -->
+            <img src="images/profile.jpg" alt="Jatin Mishra" onerror="this.remove()" />
+            <span aria-hidden="true">JM</span>
+          </div>
+          <h2>Jatin Mishra</h2>
+          <p class="about-role">Developer of this game</p>
+          <p>
+            Hi! I'm Jatin. I love turning simple ideas into things people enjoy. I made this
+            game so you can take a break, challenge a friend and have some fun. Thanks for playing!
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="https://jatinmishramca.netlify.app/" target="_blank" rel="noopener">My Portfolio</a>
+          </div>
+        </div>
+
+        <!-- slides change on their own, see startSlider in app.js -->
+        <div class="slider">
+          <div class="slides">
+            <div class="slide active">
+              <span class="slide-icon" aria-hidden="true">✍️</span>
+              <h3>Enter your names</h3>
+              <p>They show up on the scoreboard and on your scorecard.</p>
+            </div>
+            <div class="slide">
+              <span class="slide-icon" aria-hidden="true">🎯</span>
+              <h3>Line them up</h3>
+              <p>3 in a row on 3 x 3, or 4 in a row on the bigger boards.</p>
+            </div>
+            <div class="slide">
+              <span class="slide-icon" aria-hidden="true">🤖</span>
+              <h3>Beat the computer</h3>
+              <p>Try Easy first, then see if you can hold a draw on Hard.</p>
+            </div>
+            <div class="slide">
+              <span class="slide-icon" aria-hidden="true">⏱️</span>
+              <h3>Race the clock</h3>
+              <p>Turn on the timer - run out of time and you lose your turn.</p>
+            </div>
+            <div class="slide">
+              <span class="slide-icon" aria-hidden="true">📥</span>
+              <h3>Save your score</h3>
+              <p>Download the scorecard as an image and share it.</p>
+            </div>
+          </div>
+          <div class="dots"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="backdrop hide"></div>
+
     <script src="app.js"></script>
   </body>
 </html>

@@ -12,6 +12,12 @@ let levelToggle = document.querySelector("#level-toggle");
 let levelBtns = document.querySelectorAll("#level-toggle .toggle-btn");
 let sizeBtns = document.querySelectorAll("#size-toggle .toggle-btn");
 let timerBtns = document.querySelectorAll("#timer-toggle .toggle-btn");
+let msgEmoji = document.querySelector("#msg-emoji");
+let msgSub = document.querySelector("#msg-sub");
+let nameInputs = { O: document.querySelector("#input-o"), X: document.querySelector("#input-x") };
+let soundBtn = document.querySelector("#sound-btn");
+let downloadBtns = document.querySelectorAll("#download-btn, #msg-download-btn");
+let confettiCanvas = document.querySelector("#confetti");
 
 const HUMAN = "O";
 const COMPUTER = "X";
@@ -35,6 +41,98 @@ let timer = null; //pending computer move or result popup
 let turnSeconds = 0; //0 = no turn timer
 let timeLeft = 0;
 let turnInterval = null;
+
+const WIN_LINES = ["What a move!", "Too good!", "Champion stuff!", "Unstoppable!", "Clean win!"];
+const LOSE_LINES = ["The computer got you this time.", "So close! Try again.", "Revenge round?"];
+const DRAW_LINES = ["Nobody blinked.", "Evenly matched!", "One more to settle it?"];
+//each note is [frequency, start, length] in seconds
+const SOUNDS = {
+  O: [[520, 0, 0.08]],
+  X: [[390, 0, 0.08]],
+  win: [[523, 0, 0.12], [659, 0.12, 0.12], [784, 0.24, 0.3]],
+  lose: [[392, 0, 0.15], [311, 0.15, 0.15], [262, 0.3, 0.3]],
+  draw: [[440, 0, 0.15], [440, 0.2, 0.15]],
+};
+
+let names = { O: "", X: "" }; //typed by the players, empty = default name
+let rounds = []; //result of every round since the last score reset: "O", "X" or "draw"
+let streak = { player: "", count: 0 };
+let soundOn = true;
+let audioCtx = null;
+let confettiFrame = null;
+
+//storage can be blocked (private mode), the game works without it
+const load = (key, fallback) => {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const save = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+};
+
+const playSound = (name) => {
+  if (!soundOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    for (let [frequency, start, length] of SOUNDS[name]) {
+      let osc = audioCtx.createOscillator();
+      let gain = audioCtx.createGain();
+      let at = audioCtx.currentTime + start;
+      osc.type = "triangle";
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.15, at);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + length);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(at);
+      osc.stop(at + length);
+    }
+  } catch {}
+};
+
+const launchConfetti = () => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let ctx = confettiCanvas.getContext("2d");
+  let width = (confettiCanvas.width = window.innerWidth);
+  let height = (confettiCanvas.height = window.innerHeight);
+  let colors = ["#ffd166", "#ef6f6c", "#2ec4b6", "#f4f1de"];
+  let pieces = [];
+  for (let i = 0; i < 150; i++) {
+    pieces.push({
+      x: Math.random() * width,
+      y: -20 - Math.random() * height * 0.6,
+      size: 6 + Math.random() * 7,
+      speed: 3 + Math.random() * 4,
+      drift: -1.5 + Math.random() * 3,
+      spin: Math.random() * Math.PI,
+      color: colors[i % colors.length],
+    });
+  }
+  cancelAnimationFrame(confettiFrame);
+  let started = performance.now();
+  const draw = (now) => {
+    ctx.clearRect(0, 0, width, height);
+    if (now - started > 3500) return;
+    for (let p of pieces) {
+      p.y += p.speed;
+      p.x += p.drift;
+      p.spin += 0.12;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.spin);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    }
+    confettiFrame = requestAnimationFrame(draw);
+  };
+  confettiFrame = requestAnimationFrame(draw);
+};
 
 //every straight line of winLength cells: rows, columns and both diagonals
 const buildWinPatterns = () => {
@@ -121,8 +219,14 @@ const emptyCells = (b) => {
 };
 
 const playerName = (player) => {
-  if (!vsComputer) return `Player ${player}`;
-  return player === HUMAN ? "You" : "Computer";
+  if (vsComputer && player === COMPUTER) return "Computer";
+  if (names[player]) return names[player];
+  return vsComputer ? "You" : `Player ${player}`;
+};
+
+const scoreLabel = (player) => {
+  if (!vsComputer && !names[player]) return `Player ${player}`;
+  return `${playerName(player)} (${player})`;
 };
 
 const isComputerTurn = () => vsComputer && currentPlayer === COMPUTER;
@@ -131,10 +235,10 @@ const updateStatus = () => {
   let text;
   if (isComputerTurn()) {
     text = "Computer is thinking...";
-  } else if (vsComputer) {
+  } else if (playerName(currentPlayer) === "You") {
     text = "Your turn";
   } else {
-    text = `Player ${currentPlayer}'s turn`;
+    text = `${playerName(currentPlayer)}'s turn`;
   }
   let timed = turnSeconds > 0 && !isComputerTurn();
   if (timed) text += ` - ${timeLeft}s`;
@@ -148,8 +252,8 @@ const updateScores = () => {
   document.querySelector("#score-o").innerText = scores.O;
   document.querySelector("#score-x").innerText = scores.X;
   document.querySelector("#score-draw").innerText = scores.draw;
-  document.querySelector("#name-o").innerText = vsComputer ? "You (O)" : "Player O";
-  document.querySelector("#name-x").innerText = vsComputer ? "Computer (X)" : "Player X";
+  document.querySelector("#name-o").innerText = scoreLabel("O");
+  document.querySelector("#name-x").innerText = scoreLabel("X");
 };
 
 const stopTimers = () => {
@@ -184,13 +288,17 @@ const beginTurn = () => {
   }
 };
 
-const showResult = (text) => {
+const showResult = (text, emoji, sub, sound) => {
   statusText.innerText = text;
   statusText.classList.remove("hurry");
   //short delay so the winning line is visible before the popup
   timer = setTimeout(() => {
     msg.innerText = text;
+    msgEmoji.innerText = emoji;
+    msgSub.innerText = sub;
     msgContainer.classList.remove("hide");
+    playSound(sound);
+    if (sound === "win") launchConfetti();
   }, 700);
 };
 
@@ -213,11 +321,21 @@ const finishGame = (pattern) => {
       boxes[i].classList.add("win");
     }
     scores[winner]++;
+    rounds.push(winner);
+    streak = { player: winner, count: streak.player === winner ? streak.count + 1 : 1 };
     let name = playerName(winner);
-    showResult(name === "You" ? "You win!" : `${name} wins!`);
+    let text = name === "You" ? "You win!" : `${name} wins!`;
+    if (vsComputer && winner === COMPUTER) {
+      showResult(text, "🤖", randomFrom(LOSE_LINES), "lose");
+    } else {
+      let sub = streak.count >= 2 ? `🔥 ${streak.count} wins in a row!` : randomFrom(WIN_LINES);
+      showResult(text, "🏆", sub, "win");
+    }
   } else {
     scores.draw++;
-    showResult("It's a draw.");
+    rounds.push("draw");
+    streak = { player: "", count: 0 };
+    showResult("It's a draw.", "🤝", randomFrom(DRAW_LINES), "draw");
   }
   updateScores();
 };
@@ -229,6 +347,7 @@ const playMove = (index) => {
   boxes[index].innerText = currentPlayer;
   boxes[index].classList.add(currentPlayer === "O" ? "mark-o" : "mark-x");
   boxes[index].disabled = true;
+  playSound(currentPlayer);
 
   let pattern = getWinPattern(board);
   if (pattern || emptyCells(board).length === 0) {
@@ -352,7 +471,108 @@ const newGame = () => {
 
 const resetScores = () => {
   scores = { O: 0, X: 0, draw: 0 };
+  rounds = [];
+  streak = { player: "", count: 0 };
   updateScores();
+};
+
+const roundRect = (ctx, x, y, width, height, radius) => {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+};
+
+//draws the scorecard on a canvas and saves it as a PNG
+const downloadScorecard = () => {
+  const WIDTH = 900;
+  const HEIGHT = 1200;
+  const FONT = '"Segoe UI", system-ui, sans-serif';
+  let canvas = document.createElement("canvas");
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+  let ctx = canvas.getContext("2d");
+  const write = (text, x, y, font, color, align = "center") => {
+    ctx.font = `${font} ${FONT}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, y);
+  };
+
+  let bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  bg.addColorStop(0, "#1f5660");
+  bg.addColorStop(1, "#12343b");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  write("TIC TAC TOE", WIDTH / 2, 120, "700 68px", "#f4f1de");
+  write("S C O R E   C A R D", WIDTH / 2, 170, "600 24px", "#2ec4b6");
+
+  let panels = [
+    { player: "O", x: 60, color: "#ffd166" },
+    { player: "X", x: 470, color: "#ef6f6c" },
+  ];
+  for (let { player, x, color } of panels) {
+    ctx.fillStyle = "#1b4a52";
+    roundRect(ctx, x, 230, 370, 290, 28);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    write(playerName(player), x + 185, 295, "600 36px", "#f4f1de");
+    write(`playing ${player}`, x + 185, 335, "400 22px", "#a9c4c4");
+    write(scores[player], x + 185, 475, "700 130px", color);
+  }
+
+  ctx.fillStyle = "#1b4a52";
+  roundRect(ctx, 60, 550, 780, 90, 28);
+  ctx.fill();
+  write(`Draws: ${scores.draw}`, 250, 606, "600 30px", "#f4f1de");
+  write(`Rounds played: ${rounds.length}`, 630, 606, "600 30px", "#f4f1de");
+
+  let verdict = "No rounds played yet";
+  if (scores.O !== scores.X) {
+    let leader = playerName(scores.O > scores.X ? "O" : "X");
+    verdict = leader === "You" ? "You are leading!" : `${leader} is leading!`;
+  } else if (rounds.length > 0) {
+    verdict = "It's all level!";
+  }
+  write(verdict, WIDTH / 2, 730, "700 44px", "#2ec4b6");
+
+  let recent = rounds.slice(-6);
+  let firstRound = rounds.length - recent.length + 1;
+  recent.forEach((result, i) => {
+    let text = result === "draw" ? "Draw" : `${playerName(result)} won`;
+    write(`Round ${firstRound + i}  -  ${text}`, WIDTH / 2, 800 + i * 44, "400 26px", "#f4f1de");
+  });
+
+  let mode = vsComputer ? `vs Computer (${difficulty})` : "2 Players";
+  write(`${size} x ${size} board  |  ${mode}`, WIDTH / 2, 1100, "400 24px", "#a9c4c4");
+  write(new Date().toLocaleString(), WIDTH / 2, 1136, "400 22px", "#a9c4c4");
+  write("Tic Tac Toe by Jatin Mishra", WIDTH / 2, 1172, "400 20px", "#a9c4c4");
+
+  canvas.toBlob((blob) => {
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `tictactoe-scorecard-${Date.now()}.png`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  });
+};
+
+//the X name is the computer's while playing against it
+const syncNameInputs = () => {
+  nameInputs.O.value = names.O;
+  nameInputs.X.value = vsComputer ? "Computer" : names.X;
+  nameInputs.X.disabled = vsComputer;
+};
+
+const updateSoundBtn = () => {
+  soundBtn.innerText = soundOn ? "🔊" : "🔇";
+  soundBtn.setAttribute("aria-pressed", soundOn);
 };
 
 const setActive = (btns, activeBtn) => {
@@ -366,6 +586,7 @@ modeBtns.forEach((btn) => {
     vsComputer = btn.dataset.mode === "cpu";
     setActive(modeBtns, btn);
     levelToggle.classList.toggle("hide", !vsComputer);
+    syncNameInputs();
     startingPlayer = "O";
     resetScores();
     startRound();
@@ -402,6 +623,88 @@ timerBtns.forEach((btn) => {
 newGameBtn.addEventListener("click", newGame);
 resetBtn.addEventListener("click", resetGame);
 scoreResetBtn.addEventListener("click", resetScores);
+downloadBtns.forEach((btn) => btn.addEventListener("click", downloadScorecard));
+
+for (let player of ["O", "X"]) {
+  nameInputs[player].addEventListener("input", () => {
+    names[player] = nameInputs[player].value.trim();
+    save(`ttt-name-${player}`, names[player]);
+    updateScores();
+    if (!gameOver) updateStatus();
+  });
+}
+
+soundBtn.addEventListener("click", () => {
+  soundOn = !soundOn;
+  save("ttt-sound", soundOn ? "on" : "off");
+  updateSoundBtn();
+});
+
+//on small screens the side panels are drawers opened from the top bar
+let panels = document.querySelectorAll(".panel");
+let backdrop = document.querySelector(".backdrop");
+
+const closePanels = () => {
+  panels.forEach((panel) => panel.classList.remove("open"));
+  backdrop.classList.add("hide");
+};
+
+document.querySelectorAll(".panel-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    closePanels();
+    document.getElementById(btn.dataset.panel).classList.add("open");
+    backdrop.classList.remove("hide");
+  });
+});
+document.querySelectorAll(".panel-close").forEach((btn) => btn.addEventListener("click", closePanels));
+backdrop.addEventListener("click", closePanels);
+
+//tips in the about panel change on their own every few seconds
+const startSlider = () => {
+  let slides = document.querySelectorAll(".slide");
+  let dotsEl = document.querySelector(".dots");
+  let current = 0;
+  let interval = null;
+  const show = (index) => {
+    current = index;
+    slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+    [...dotsEl.children].forEach((dot, i) => dot.classList.toggle("active", i === index));
+    clearInterval(interval);
+    interval = setInterval(() => show((current + 1) % slides.length), 3500);
+  };
+  slides.forEach((slide, i) => {
+    let dot = document.createElement("button");
+    dot.className = "dot";
+    dot.setAttribute("aria-label", `Tip ${i + 1}`);
+    dot.addEventListener("click", () => show(i));
+    dotsEl.appendChild(dot);
+  });
+  show(0);
+};
+
+//X and O marks drifting up behind the game
+const buildFloaters = () => {
+  let floaters = document.querySelector(".floaters");
+  for (let i = 0; i < 12; i++) {
+    let mark = document.createElement("span");
+    mark.innerText = i % 2 ? "X" : "O";
+    mark.style.color = i % 2 ? "var(--color-x)" : "var(--color-o)";
+    mark.style.left = `${Math.random() * 95}%`;
+    mark.style.fontSize = `${1.5 + Math.random() * 3}rem`;
+    mark.style.animationDuration = `${12 + Math.random() * 14}s`;
+    mark.style.animationDelay = `${-Math.random() * 20}s`;
+    floaters.appendChild(mark);
+  }
+};
+
+startSlider();
+buildFloaters();
+
+names.O = load("ttt-name-O", "");
+names.X = load("ttt-name-X", "");
+soundOn = load("ttt-sound", "on") === "on";
+syncNameInputs();
+updateSoundBtn();
 
 buildBoard();
 updateScores();
