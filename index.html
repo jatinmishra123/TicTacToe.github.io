@@ -38,10 +38,40 @@
       </div>
     </div>
 
+    <div class="msg-container hide" id="share-modal">
+      <div class="msg-card">
+        <span class="modal-emoji" aria-hidden="true">🌐</span>
+        <p id="share-title">Invite a friend</p>
+        <p id="share-text"></p>
+        <div class="invite hide" id="share-ready">
+          <input id="share-link" type="text" readonly aria-label="Invite link" />
+          <div class="actions">
+            <a id="whatsapp-btn" class="btn btn-primary" target="_blank" rel="noopener">WhatsApp</a>
+            <button id="share-copy-btn" class="btn btn-ghost">Copy link</button>
+            <button id="share-native-btn" class="btn btn-ghost hide">Share</button>
+          </div>
+        </div>
+        <button id="share-close" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+
+    <!-- info strip that keeps moving above the header; app.js repeats it so the loop has no gap -->
+    <div class="ticker">
+      <div class="ticker-track">
+        <span>👋 Hi, I'm Jatin Mishra</span>
+        <span>🎮 Developer of this game</span>
+        <span>💼 My portfolio: <a href="https://jatinmishramca.netlify.app/" target="_blank" rel="noopener">jatinmishramca.netlify.app</a></span>
+        <span>🌐 Tap Play Online and challenge a friend</span>
+        <span>💬 Chat while you play</span>
+        <span>📥 Download your scorecard after the match</span>
+      </div>
+    </div>
+
     <header class="topbar">
       <button class="icon-btn panel-btn" data-panel="setup-panel" aria-label="Game setup">⚙️</button>
-      <span class="brand"><span class="brand-x">X</span><span class="brand-o">O</span> Tic Tac Toe</span>
+      <span class="brand"><span class="brand-x">X</span><span class="brand-o">O</span><span class="brand-text"> Tic Tac Toe</span></span>
       <div class="topbar-actions">
+        <button id="online-btn" class="online-btn">🌐 Play Online</button>
         <button id="chat-btn" class="icon-btn chat-btn hide" aria-label="Chat">💬</button>
         <button class="icon-btn panel-btn" data-panel="about-panel" aria-label="About me">👤</button>
         <button id="sound-btn" class="icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>

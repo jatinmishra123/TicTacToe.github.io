@@ -28,7 +28,7 @@ body {
 
 main {
   /* board side: as jatin mishra  big as the column and the screen height allow, so nothing scrolls */
-  --board: max(200px, min(420px, 100vw - 2 * var(--panel-w) - 5rem, 100dvh - 24rem));
+  --board: max(200px, min(420px, 100vw - 2 * var(--panel-w) - 5rem, 100dvh - 25rem));
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -621,7 +621,7 @@ main .btn {
 /* tablets and phones: the side panels slide in from the edges instead */
 @media (max-width: 959px) {
   main {
-    --board: max(200px, min(420px, 92vw, 100dvh - 20rem));
+    --board: max(200px, min(420px, 92vw, 100dvh - 22rem));
     gap: 0.7rem;
   }
 
@@ -901,4 +901,81 @@ main .btn {
 #chat-form .btn {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
+}
+
+/* ---------- info ticker and quick online invite ---------- */
+
+.ticker {
+  flex: none;
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #06282c;
+  background: linear-gradient(90deg, var(--color-o), var(--accent));
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* the track holds the items twice, so sliding half its width loops seamlessly */
+.ticker-track {
+  display: inline-flex;
+  animation: ticker 40s linear infinite;
+}
+
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+.ticker span {
+  padding: 0 1.5rem;
+}
+
+.ticker a {
+  color: inherit;
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.online-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: #06282c;
+  background-color: var(--color-o);
+  border: none;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+#share-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+#share-text {
+  color: var(--muted);
+}
+
+#share-ready {
+  width: 100%;
+}
+
+#share-ready input {
+  background-color: var(--bg);
+}
+
+@media (max-width: 480px) {
+  .brand-text {
+    display: none;
+  }
 }

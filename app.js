@@ -39,6 +39,12 @@ let chatTitle = document.querySelector("#chat-title");
 let chatLog = document.querySelector("#chat-log");
 let chatForm = document.querySelector("#chat-form");
 let chatInput = document.querySelector("#chat-input");
+let onlineBtn = document.querySelector("#online-btn");
+let shareModal = document.querySelector("#share-modal");
+let shareText = document.querySelector("#share-text");
+let shareReady = document.querySelector("#share-ready");
+let shareLink = document.querySelector("#share-link");
+let whatsappBtn = document.querySelector("#whatsapp-btn");
 
 const HUMAN = "O";
 const COMPUTER = "X";
@@ -86,6 +92,7 @@ let confettiFrame = null;
 //online play: two browsers talk directly, the host plays O and the guest plays X.
 //on this device names.O is always "my name" while online
 const ROOM_PREFIX = "ttt-mca-";
+const PAGE_TITLE = document.title;
 let online = null; //{ peer, conn, myMark, connected, friend, status, refused } while in online mode
 let pendingConn = null; //a guest the host has not answered yet
 let modalActions = null;
@@ -329,6 +336,13 @@ const startTurnTimer = () => {
   }, 1000);
 };
 
+//online: buzz the phone and flag the tab so a player notices it is their turn
+const alertTurn = () => {
+  let mine = online !== null && online.connected && currentPlayer === online.myMark;
+  document.title = mine && document.hidden ? "Your turn! - Tic-Tac-Toe" : PAGE_TITLE;
+  if (mine && navigator.vibrate) navigator.vibrate(80);
+};
+
 const beginTurn = () => {
   clearInterval(turnInterval);
   if (online && !online.connected) {
@@ -340,6 +354,7 @@ const beginTurn = () => {
     startTurnTimer();
     updateStatus();
   }
+  alertTurn();
 };
 
 const showResult = (text, emoji, sub, sound) => {
@@ -862,7 +877,26 @@ const clearRoomFromUrl = () => history.replaceState(null, "", location.pathname)
 const setNote = (note, status) => {
   online.status = status;
   onlineNote.innerText = note;
+  shareText.innerText = note;
+  updateOnlineBtn();
   if (!online.connected) updateStatus();
+};
+
+const updateOnlineBtn = () => {
+  if (!online) onlineBtn.innerText = "🌐 Play Online";
+  else onlineBtn.innerText = online.connected ? "🟢 Online" : "⏳ Waiting";
+};
+
+//the invite link lives in the setup panel and in the invite popup
+const showInvite = (visible) => {
+  inviteEl.classList.toggle("hide", !visible);
+  shareReady.classList.toggle("hide", !visible);
+};
+
+const setInviteLink = (url) => {
+  inviteLink.value = url;
+  shareLink.value = url;
+  whatsappBtn.href = `https://wa.me/?text=${encodeURIComponent(`Play Tic Tac Toe with me! ${url}`)}`;
 };
 
 //one popup for both sides: the guest's "send request" and the host's "accept"
@@ -951,7 +985,7 @@ document.querySelectorAll(".chat-quick button").forEach((btn) => {
 const startMatch = () => {
   setChat(true);
   setNote(`Connected with ${playerName(online.myMark === "O" ? "X" : "O")}. Have fun!`, "");
-  inviteEl.classList.add("hide");
+  showInvite(false);
   closePanels();
   syncNameInputs();
   startingPlayer = "O";
@@ -983,7 +1017,7 @@ const connectionClosed = (conn) => {
   stopTimers();
   setChat(false);
   if (online.myMark === "O") {
-    inviteEl.classList.remove("hide");
+    showInvite(true);
     setNote("Your friend left. Share the link to play again.", "Waiting for a friend to join...");
   } else if (!online.refused) {
     setNote("The connection to your friend was lost. Ask for a new link to play again.", "Disconnected");
@@ -1067,8 +1101,8 @@ const hostRoom = () => {
   let peer = (online.peer = new Peer(ROOM_PREFIX + code));
   peer.on("open", () => {
     if (!online || online.peer !== peer) return;
-    inviteLink.value = `${location.origin}${location.pathname}?room=${code}`;
-    inviteEl.classList.remove("hide");
+    setInviteLink(`${location.origin}${location.pathname}?room=${code}`);
+    showInvite(true);
     setNote(
       "Send this link to a friend. The match starts when you accept their request.",
       "Waiting for a friend to join..."
@@ -1082,6 +1116,7 @@ const hostRoom = () => {
       if (online.connected || pendingConn) return conn.send({ type: "busy" });
       let friend = cleanName(message.name);
       pendingConn = conn;
+      shareModal.classList.add("hide");
       askModal({
         title: `${friend || "A friend"} wants to play`,
         text: "Accept the request to start the match.",
@@ -1142,7 +1177,10 @@ const enterOnline = (joinCode) => {
   modeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === "online"));
   levelToggle.classList.add("hide");
   onlineBox.classList.remove("hide");
-  inviteEl.classList.add("hide");
+  showInvite(false);
+  //the host goes straight to the invite popup
+  shareModal.classList.toggle("hide", Boolean(joinCode));
+  closePanels();
   syncNameInputs();
   startingPlayer = "O";
   resetScores();
@@ -1166,31 +1204,54 @@ const leaveOnline = () => {
   onlineBox.classList.add("hide");
   inviteModal.classList.add("hide");
   setChat(false);
+  shareModal.classList.add("hide");
+  updateOnlineBtn();
   clearRoomFromUrl();
 };
 
 leaveBtn.addEventListener("click", () => modeBtns[0].click());
 window.addEventListener("pagehide", () => sendOnline({ type: "bye" }));
 
-copyBtn.addEventListener("click", async () => {
+//top bar shortcut: start an online room, or reopen the invite while still waiting
+onlineBtn.addEventListener("click", () => {
+  if (!online) enterOnline();
+  else if (online.myMark === "O" && !online.connected) shareModal.classList.remove("hide");
+});
+document.querySelector("#share-close").addEventListener("click", () => shareModal.classList.add("hide"));
+
+//the same copy and share buttons sit in the setup panel and in the invite popup
+const copyInvite = async (btn, input) => {
   try {
-    await navigator.clipboard.writeText(inviteLink.value);
-    copyBtn.innerText = "Copied!";
-    setTimeout(() => (copyBtn.innerText = "Copy link"), 1500);
+    await navigator.clipboard.writeText(input.value);
+    btn.innerText = "Copied!";
+    setTimeout(() => (btn.innerText = "Copy link"), 1500);
   } catch {
     //no clipboard access: select it so the player can copy by hand
-    inviteLink.select();
+    input.select();
   }
-});
+};
+copyBtn.addEventListener("click", () => copyInvite(copyBtn, inviteLink));
+let shareCopyBtn = document.querySelector("#share-copy-btn");
+shareCopyBtn.addEventListener("click", () => copyInvite(shareCopyBtn, shareLink));
 
 if (navigator.share) {
-  shareBtn.classList.remove("hide");
-  shareBtn.addEventListener("click", () => {
-    navigator
-      .share({ title: "Tic Tac Toe", text: "Play Tic Tac Toe with me!", url: inviteLink.value })
-      .catch(() => {});
-  });
+  for (let btn of [shareBtn, document.querySelector("#share-native-btn")]) {
+    btn.classList.remove("hide");
+    btn.addEventListener("click", () => {
+      navigator
+        .share({ title: "Tic Tac Toe", text: "Play Tic Tac Toe with me!", url: inviteLink.value })
+        .catch(() => {});
+    });
+  }
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) document.title = PAGE_TITLE;
+});
+
+//repeat the ticker items so the strip loops without a gap
+let tickerTrack = document.querySelector(".ticker-track");
+tickerTrack.innerHTML += tickerTrack.innerHTML;
 
 startSlider();
 buildFloaters();
