@@ -13,6 +13,26 @@
   --color-o: #ffd166;
   --color-x: #ef6f6c;
   --accent: #2ec4b6;
+  --glow: #1f5660;
+}
+
+/* colour themes picked in the setup panel */
+:root[data-theme="night"] {
+  --bg: #17122e;
+  --panel: #271f4a;
+  --panel-light: #382d66;
+  --muted: #b9b1d9;
+  --accent: #a78bfa;
+  --glow: #33275f;
+}
+
+:root[data-theme="sunset"] {
+  --bg: #34192a;
+  --panel: #50263c;
+  --panel-light: #6b3550;
+  --muted: #e3bccb;
+  --accent: #ff9f68;
+  --glow: #6a2f4a;
 }
 
 body {
@@ -20,7 +40,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: radial-gradient(circle at top, #1f5660, var(--bg) 70%);
+  background: radial-gradient(circle at top, var(--glow), var(--bg) 70%);
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   text-align: center;
@@ -212,6 +232,13 @@ h1 {
 .btn:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+  filter: none;
 }
 
 .btn-primary {

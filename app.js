@@ -12,6 +12,9 @@ let levelToggle = document.querySelector("#level-toggle");
 let levelBtns = document.querySelectorAll("#level-toggle .toggle-btn");
 let sizeBtns = document.querySelectorAll("#size-toggle .toggle-btn");
 let timerBtns = document.querySelectorAll("#timer-toggle .toggle-btn");
+let seriesBtns = document.querySelectorAll("#series-toggle .toggle-btn");
+let themeBtns = document.querySelectorAll("#theme-toggle .toggle-btn");
+let undoBtn = document.querySelector("#undo-btn");
 let msgEmoji = document.querySelector("#msg-emoji");
 let msgSub = document.querySelector("#msg-sub");
 let nameInputs = { O: document.querySelector("#input-o"), X: document.querySelector("#input-x") };
@@ -66,6 +69,9 @@ let scores = { O: 0, X: 0, draw: 0 };
 let timer = null; //pending computer move or result popup
 
 let turnSeconds = 0; //0 = no turn timer
+let seriesLength = 0; //0 = free play, otherwise best of this many rounds
+let matchOver = false; //a series was just won, the next round starts a fresh one
+let moves = []; //cells played this round in order, for undo
 let timeLeft = 0;
 let turnInterval = null;
 
@@ -235,7 +241,13 @@ const buildBoard = () => {
     gameEl.appendChild(box);
     boxes.push(box);
   }
-  ruleText.innerText = `${size} x ${size} board - get ${winLength} in a row to win`;
+  updateRule();
+};
+
+const updateRule = () => {
+  let text = `${size} x ${size} board - get ${winLength} in a row to win`;
+  if (seriesLength > 0) text += ` - best of ${seriesLength}`;
+  ruleText.innerText = text;
 };
 
 const getWinPattern = (b) => {
@@ -343,6 +355,33 @@ const alertTurn = () => {
   if (mine && navigator.vibrate) navigator.vibrate(80);
 };
 
+//undo is for games on one device; against the computer it also takes back the computer's reply
+const canUndo = () => {
+  if (online || gameOver || isComputerTurn()) return false;
+  return vsComputer ? board.includes(HUMAN) : moves.length > 0;
+};
+
+const updateUndo = () => {
+  undoBtn.classList.toggle("hide", online !== null);
+  undoBtn.disabled = !canUndo();
+};
+
+const undoMove = () => {
+  if (!canUndo()) return;
+  let mark;
+  do {
+    let index = moves.pop();
+    mark = board[index];
+    board[index] = "";
+    boxes[index].innerText = "";
+    boxes[index].classList.remove("mark-o", "mark-x");
+    boxes[index].disabled = false;
+  } while (vsComputer && mark === COMPUTER);
+  //whoever made the removed move plays again
+  currentPlayer = mark;
+  beginTurn();
+};
+
 const beginTurn = () => {
   clearInterval(turnInterval);
   if (online && !online.connected) {
@@ -355,6 +394,7 @@ const beginTurn = () => {
     updateStatus();
   }
   alertTurn();
+  updateUndo();
 };
 
 const showResult = (text, emoji, sub, sound) => {
@@ -392,22 +432,27 @@ const finishGame = (pattern) => {
     scores[winner]++;
     rounds.push(winner);
     streak = { player: winner, count: streak.player === winner ? streak.count + 1 : 1 };
+    //a best-of series ends as soon as someone has more than half the rounds
+    matchOver = seriesLength > 0 && scores[winner] > seriesLength / 2;
     let name = playerName(winner);
-    let text = name === "You" ? "You win!" : `${name} wins!`;
-    if (vsComputer && winner === COMPUTER) {
-      showResult(text, "🤖", randomFrom(LOSE_LINES), "lose");
-    } else if (online && winner !== online.myMark) {
-      showResult(text, "😢", randomFrom(LOSE_LINES), "lose");
-    } else {
-      let sub = streak.count >= 2 ? `🔥 ${streak.count} wins in a row!` : randomFrom(WIN_LINES);
-      showResult(text, "🏆", sub, "win");
-    }
+    let prize = matchOver ? " the match" : "";
+    let text = name === "You" ? `You win${prize}!` : `${name} wins${prize}!`;
+    let lost = (vsComputer && winner === COMPUTER) || (online !== null && winner !== online.myMark);
+    let sub = randomFrom(lost ? LOSE_LINES : WIN_LINES);
+    if (matchOver) sub = `Best of ${seriesLength} finished ${scores.O} - ${scores.X}`;
+    else if (!lost && streak.count >= 2) sub = `🔥 ${streak.count} wins in a row!`;
+    let emoji = "🏆";
+    if (lost) emoji = vsComputer ? "🤖" : "😢";
+    else if (matchOver) emoji = "👑";
+    showResult(text, emoji, sub, lost ? "lose" : "win");
   } else {
     scores.draw++;
     rounds.push("draw");
     streak = { player: "", count: 0 };
     showResult("It's a draw.", "🤝", randomFrom(DRAW_LINES), "draw");
   }
+  newGameBtn.innerText = matchOver ? "New Match" : "New Game";
+  updateUndo();
   updateScores();
 };
 
@@ -415,6 +460,7 @@ const playMove = (index) => {
   if (gameOver || board[index] !== "") return;
 
   board[index] = currentPlayer;
+  moves.push(index);
   boxes[index].innerText = currentPlayer;
   boxes[index].classList.add(currentPlayer === "O" ? "mark-o" : "mark-x");
   boxes[index].disabled = true;
@@ -517,6 +563,8 @@ const computerMove = () => {
 
 const startRound = () => {
   stopTimers();
+  if (matchOver) resetScores();
+  moves = [];
   board = Array(size * size).fill("");
   currentPlayer = startingPlayer;
   gameOver = false;
@@ -544,6 +592,7 @@ const resetScores = () => {
   scores = { O: 0, X: 0, draw: 0 };
   rounds = [];
   streak = { player: "", count: 0 };
+  matchOver = false;
   updateScores();
 };
 
@@ -698,6 +747,7 @@ const downloadScorecard = () => {
   });
 
   let mode = online ? "Online match" : vsComputer ? `vs Computer (${difficulty})` : "2 Players";
+  if (seriesLength > 0) mode += `  |  Best of ${seriesLength}`;
   write(`${size} x ${size} board  |  ${mode}`, MID, 1050, "400 24px", TEXT);
   write(new Date().toLocaleString(), MID, 1084, "400 20px", MUTED);
   write("tic-tac-toe-game-mca.netlify.app", MID, 1128, "600 22px", ACCENT);
@@ -721,7 +771,7 @@ const syncNameInputs = () => {
   nameLabels.X.innerText = online ? "Friend" : "Player X";
   //only the host picks the board and timer
   let guest = online !== null && online.myMark === "X";
-  [...sizeBtns, ...timerBtns].forEach((btn) => (btn.disabled = guest));
+  [...sizeBtns, ...timerBtns, ...seriesBtns].forEach((btn) => (btn.disabled = guest));
 };
 
 const updateSoundBtn = () => {
@@ -768,7 +818,7 @@ sizeBtns.forEach((btn) => {
     buildBoard();
     resetScores();
     startRound();
-    sendOnline({ type: "config", size, turnSeconds, startingPlayer });
+    sendOnline({ type: "config", size, turnSeconds, seriesLength, startingPlayer });
   });
 });
 
@@ -777,9 +827,35 @@ timerBtns.forEach((btn) => {
     turnSeconds = Number(btn.dataset.seconds);
     setActive(timerBtns, btn);
     startRound();
-    sendOnline({ type: "config", size, turnSeconds, startingPlayer });
+    sendOnline({ type: "config", size, turnSeconds, seriesLength, startingPlayer });
   });
 });
+
+seriesBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    seriesLength = Number(btn.dataset.series);
+    setActive(seriesBtns, btn);
+    updateRule();
+    startingPlayer = "O";
+    resetScores();
+    startRound();
+    sendOnline({ type: "config", size, turnSeconds, seriesLength, startingPlayer });
+  });
+});
+
+const setTheme = (theme) => {
+  document.documentElement.dataset.theme = theme;
+  themeBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.theme === theme));
+};
+
+themeBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setTheme(btn.dataset.theme);
+    save("ttt-theme", btn.dataset.theme);
+  });
+});
+
+undoBtn.addEventListener("click", undoMove);
 
 //online, the friend's device repeats whatever these buttons do
 newGameBtn.addEventListener("click", () => {
@@ -1000,6 +1076,12 @@ const applyConfig = (message) => {
     resetScores();
   }
   if ([0, 5, 10].includes(message.turnSeconds)) turnSeconds = message.turnSeconds;
+  if ([0, 3, 5].includes(message.seriesLength) && message.seriesLength !== seriesLength) {
+    seriesLength = message.seriesLength;
+    resetScores();
+    updateRule();
+  }
+  seriesBtns.forEach((btn) => btn.classList.toggle("active", Number(btn.dataset.series) === seriesLength));
   sizeBtns.forEach((btn) => btn.classList.toggle("active", Number(btn.dataset.size) === size));
   timerBtns.forEach((btn) => btn.classList.toggle("active", Number(btn.dataset.seconds) === turnSeconds));
   startingPlayer = message.startingPlayer === "X" ? "X" : "O";
@@ -1129,7 +1211,7 @@ const hostRoom = () => {
           online.connected = true;
           online.friend = friend;
           startingPlayer = "O";
-          conn.send({ type: "accept", name: names.O, size, turnSeconds, startingPlayer });
+          conn.send({ type: "accept", name: names.O, size, turnSeconds, seriesLength, startingPlayer });
           startMatch();
         },
         onNo: () => {
@@ -1259,6 +1341,7 @@ buildFloaters();
 names.O = load("ttt-name-O", "");
 names.X = load("ttt-name-X", "");
 soundOn = load("ttt-sound", "on") === "on";
+setTheme(load("ttt-theme", "teal"));
 syncNameInputs();
 updateSoundBtn();
 
