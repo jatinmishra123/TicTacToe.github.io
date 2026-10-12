@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- glowing colour blobs that fade in while two players are connected online -->
+    <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="floaters" aria-hidden="true"></div>
     <canvas id="confetti" aria-hidden="true"></canvas>
 
@@ -102,6 +104,7 @@
           </div>
           <div class="toggle hide" id="level-toggle">
             <button class="toggle-btn" data-level="easy">Easy</button>
+            <button class="toggle-btn" data-level="medium">Medium</button>
             <button class="toggle-btn active" data-level="hard">Hard</button>
           </div>
           <div class="toggle" id="size-toggle">
@@ -123,6 +126,12 @@
             <button class="toggle-btn active" data-theme="teal">🌊 Teal</button>
             <button class="toggle-btn" data-theme="night">🌙 Night</button>
             <button class="toggle-btn" data-theme="sunset">🌅 Sunset</button>
+          </div>
+          <div class="toggle" id="marks-toggle">
+            <button class="toggle-btn active" data-marks="classic" aria-label="Classic X and O">X O</button>
+            <button class="toggle-btn" data-marks="pets" aria-label="Dog and cat">🐶🐱</button>
+            <button class="toggle-btn" data-marks="elements" aria-label="Fire and water">🔥💧</button>
+            <button class="toggle-btn" data-marks="sky" aria-label="Star and moon">⭐🌙</button>
           </div>
         </div>
 
@@ -158,7 +167,11 @@
           </div>
         </div>
 
-        <p id="status" aria-live="polite">Player O's turn</p>
+        <div class="status-row">
+          <button id="undo-btn" class="icon-btn" aria-label="Undo last move" title="Undo">↩</button>
+          <p id="status" aria-live="polite">Player O's turn</p>
+          <button id="hint-btn" class="icon-btn" aria-label="Show a hint" title="Hint">💡</button>
+        </div>
 
         <p id="rule"></p>
 
@@ -168,7 +181,6 @@
           <button id="reset-btn" class="btn btn-primary">Restart</button>
           <button id="score-reset-btn" class="btn btn-ghost">Reset Scores</button>
           <button id="download-btn" class="btn btn-ghost">📥 Scorecard</button>
-          <button id="undo-btn" class="btn btn-ghost">↩ Undo</button>
         </div>
       </main>
 

@@ -325,6 +325,7 @@ h1 {
   font-weight: 700;
   opacity: 0.12;
   animation: float-up linear infinite;
+  animation-duration: var(--dur);
 }
 
 #confetti {
@@ -1005,4 +1006,217 @@ a.btn {
   .brand-text {
     display: none;
   }
+}
+
+/* ---------- undo and hint beside the status, hint glow, winning line ---------- */
+
+.status-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.status-row .icon-btn {
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.box.hint {
+  outline: 3px solid var(--accent);
+  animation: pulse 0.5s ease-in-out 3;
+}
+
+.game {
+  position: relative;
+}
+
+/* drawn over the board from the first winning cell to the last */
+.win-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.7));
+}
+
+.win-line line {
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 0.5s ease-out forwards;
+}
+
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win-line line {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- colour: tinted cells, glowing marks, sparks ---------- */
+
+.score-o {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-o) 24%, var(--panel)), var(--panel));
+}
+
+.score-x {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-x) 24%, var(--panel)), var(--panel));
+}
+
+.box {
+  position: relative;
+}
+
+.box.mark-o:not(.win) {
+  background-color: color-mix(in srgb, var(--color-o) 20%, var(--panel-light));
+}
+
+.box.mark-x:not(.win) {
+  background-color: color-mix(in srgb, var(--color-x) 20%, var(--panel-light));
+}
+
+.mark-o,
+.mark-x {
+  text-shadow: 0 0 0.3em currentColor;
+}
+
+/* little dots that fly out of a cell when a mark lands */
+.spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: spark 0.55s ease-out forwards;
+}
+
+@keyframes spark {
+  from {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0);
+    opacity: 0;
+  }
+}
+
+/* ---------- live online match: moving background, faster floaters, glowing board ---------- */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s;
+}
+
+body.live .aurora {
+  opacity: 1;
+}
+
+.aurora span {
+  position: absolute;
+  width: 55vmax;
+  height: 55vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.4;
+  animation: drift 14s ease-in-out infinite alternate;
+}
+
+.aurora span:nth-child(1) {
+  top: -25%;
+  left: -20%;
+  background-color: var(--color-o);
+}
+
+.aurora span:nth-child(2) {
+  right: -20%;
+  bottom: -30%;
+  background-color: var(--color-x);
+  animation-duration: 18s;
+  animation-direction: alternate-reverse;
+}
+
+.aurora span:nth-child(3) {
+  top: 25%;
+  left: 30%;
+  width: 40vmax;
+  height: 40vmax;
+  background-color: var(--accent);
+  animation-duration: 11s;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(18vw, 12vh) scale(1.25);
+  }
+}
+
+body.live .floaters span {
+  opacity: 0.3;
+  animation-duration: calc(var(--dur) / 2.5);
+}
+
+body.live .game {
+  animation: board-glow 4s linear infinite;
+}
+
+@keyframes board-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--color-o), 0 0 2rem var(--color-o);
+  }
+  33% {
+    box-shadow: 0 0 0 3px var(--accent), 0 0 2rem var(--accent);
+  }
+  66% {
+    box-shadow: 0 0 0 3px var(--color-x), 0 0 2rem var(--color-x);
+  }
+}
+
+/* emoji reactions from the chat fly up the screen for both players */
+.reaction {
+  position: fixed;
+  bottom: -3rem;
+  z-index: 6;
+  font-size: 2.4rem;
+  pointer-events: none;
+  animation: rise 2.6s ease-out forwards;
+}
+
+@keyframes rise {
+  to {
+    transform: translateY(-110vh) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+/* the setup panel can get taller than a small screen; keep its own scrollbar subtle */
+.panel,
+.chat-log {
+  scrollbar-width: thin;
+  scrollbar-color: var(--panel-light) transparent;
 }

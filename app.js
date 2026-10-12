@@ -15,6 +15,8 @@ let timerBtns = document.querySelectorAll("#timer-toggle .toggle-btn");
 let seriesBtns = document.querySelectorAll("#series-toggle .toggle-btn");
 let themeBtns = document.querySelectorAll("#theme-toggle .toggle-btn");
 let undoBtn = document.querySelector("#undo-btn");
+let hintBtn = document.querySelector("#hint-btn");
+let markBtns = document.querySelectorAll("#marks-toggle .toggle-btn");
 let msgEmoji = document.querySelector("#msg-emoji");
 let msgSub = document.querySelector("#msg-sub");
 let nameInputs = { O: document.querySelector("#input-o"), X: document.querySelector("#input-x") };
@@ -53,6 +55,9 @@ const HUMAN = "O";
 const COMPUTER = "X";
 const WIN_SCORE = 100000;
 const LINE_WEIGHTS = [0, 1, 10, 100, 1000]; //value of an open line by marks in it
+const SEARCH_MS = 500; //thinking time for the hard computer on the bigger boards
+let searchDeadline = 0;
+let searchAborted = false;
 
 let size = 3; //board is size x size
 let winLength = 3; //marks in a row needed to win
@@ -72,6 +77,15 @@ let turnSeconds = 0; //0 = no turn timer
 let seriesLength = 0; //0 = free play, otherwise best of this many rounds
 let matchOver = false; //a series was just won, the next round starts a fresh one
 let moves = []; //cells played this round in order, for undo
+
+//how the two marks are drawn; the game itself always stores "O" and "X"
+const MARK_SETS = {
+  classic: { O: "O", X: "X" },
+  pets: { O: "🐶", X: "🐱" },
+  elements: { O: "🔥", X: "💧" },
+  sky: { O: "⭐", X: "🌙" },
+};
+let markSet = "classic";
 let timeLeft = 0;
 let turnInterval = null;
 
@@ -250,6 +264,49 @@ const updateRule = () => {
   ruleText.innerText = text;
 };
 
+const icon = (player) => MARK_SETS[markSet][player];
+
+//a line through the winning cells, in the winner's colour
+const drawWinLine = (pattern) => {
+  const SVG = "http://www.w3.org/2000/svg";
+  let centre = (box) => [box.offsetLeft + box.offsetWidth / 2, box.offsetTop + box.offsetHeight / 2];
+  let [x1, y1] = centre(boxes[pattern[0]]);
+  let [x2, y2] = centre(boxes[pattern[pattern.length - 1]]);
+  let svg = document.createElementNS(SVG, "svg");
+  svg.classList.add("win-line");
+  //the viewBox keeps the line in place if the board is resized
+  svg.setAttribute("viewBox", `0 0 ${gameEl.clientWidth} ${gameEl.clientHeight}`);
+  let line = document.createElementNS(SVG, "line");
+  line.setAttribute("x1", x1);
+  line.setAttribute("y1", y1);
+  line.setAttribute("x2", x2);
+  line.setAttribute("y2", y2);
+  line.setAttribute("pathLength", 1);
+  line.style.stroke = board[pattern[0]] === "O" ? "var(--color-o)" : "var(--color-x)";
+  svg.appendChild(line);
+  gameEl.appendChild(svg);
+};
+
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+//colourful dots flying out of a cell when a mark lands on it
+const sparkle = (box) => {
+  if (reducedMotion()) return;
+  const COLORS = ["var(--color-o)", "var(--color-x)", "var(--accent)", "var(--text)"];
+  const COUNT = 10;
+  let reach = box.offsetWidth * 0.75;
+  for (let k = 0; k < COUNT; k++) {
+    let angle = (Math.PI * 2 * k) / COUNT;
+    let spark = document.createElement("span");
+    spark.className = "spark";
+    spark.style.backgroundColor = COLORS[k % COLORS.length];
+    spark.style.setProperty("--dx", `${Math.cos(angle) * reach}px`);
+    spark.style.setProperty("--dy", `${Math.sin(angle) * reach}px`);
+    box.appendChild(spark);
+    setTimeout(() => spark.remove(), 600);
+  }
+};
+
 const getWinPattern = (b) => {
   for (let pattern of winPatterns) {
     let first = b[pattern[0]];
@@ -283,7 +340,7 @@ const playerName = (player) => {
 
 const scoreLabel = (player) => {
   if (!vsComputer && !online && !names[player]) return `Player ${player}`;
-  return `${playerName(player)} (${player})`;
+  return `${playerName(player)} (${icon(player)})`;
 };
 
 const isComputerTurn = () => vsComputer && currentPlayer === COMPUTER;
@@ -361,9 +418,35 @@ const canUndo = () => {
   return vsComputer ? board.includes(HUMAN) : moves.length > 0;
 };
 
-const updateUndo = () => {
+//hints are for games on one device too
+const canHint = () => !online && !gameOver && !isComputerTurn();
+
+const updateHelpers = () => {
   undoBtn.classList.toggle("hide", online !== null);
+  hintBtn.classList.toggle("hide", online !== null);
   undoBtn.disabled = !canUndo();
+  hintBtn.disabled = !canHint();
+};
+
+//an empty cell that completes a line for this player, if there is one
+const winningCell = (player) => {
+  for (let i of emptyCells(board)) {
+    board[i] = player;
+    let wins = getWinPattern(board) !== null;
+    board[i] = "";
+    if (wins) return i;
+  }
+  return null;
+};
+
+//hint: win if you can, otherwise block, otherwise the most central free cell
+const showHint = () => {
+  if (!canHint()) return;
+  let other = currentPlayer === "O" ? "X" : "O";
+  let index = winningCell(currentPlayer) ?? winningCell(other) ?? emptyCells(board)[0];
+  let box = boxes[index];
+  box.classList.add("hint");
+  setTimeout(() => box.classList.remove("hint"), 1600);
 };
 
 const undoMove = () => {
@@ -394,7 +477,7 @@ const beginTurn = () => {
     updateStatus();
   }
   alertTurn();
-  updateUndo();
+  updateHelpers();
 };
 
 const showResult = (text, emoji, sub, sound) => {
@@ -429,6 +512,7 @@ const finishGame = (pattern) => {
     for (let i of pattern) {
       boxes[i].classList.add("win");
     }
+    drawWinLine(pattern);
     scores[winner]++;
     rounds.push(winner);
     streak = { player: winner, count: streak.player === winner ? streak.count + 1 : 1 };
@@ -452,7 +536,7 @@ const finishGame = (pattern) => {
     showResult("It's a draw.", "🤝", randomFrom(DRAW_LINES), "draw");
   }
   newGameBtn.innerText = matchOver ? "New Match" : "New Game";
-  updateUndo();
+  updateHelpers();
   updateScores();
 };
 
@@ -461,9 +545,10 @@ const playMove = (index) => {
 
   board[index] = currentPlayer;
   moves.push(index);
-  boxes[index].innerText = currentPlayer;
+  boxes[index].innerText = icon(currentPlayer);
   boxes[index].classList.add(currentPlayer === "O" ? "mark-o" : "mark-x");
   boxes[index].disabled = true;
+  sparkle(boxes[index]);
   playSound(currentPlayer);
 
   let pattern = getWinPattern(board);
@@ -494,6 +579,11 @@ const evaluate = (b) => {
 
 //minimax with alpha-beta pruning; faster wins and slower losses score better
 const minimax = (b, player, depth, maxDepth, alpha, beta) => {
+  //out of thinking time: this pass is thrown away by bestMove
+  if (searchAborted || performance.now() > searchDeadline) {
+    searchAborted = true;
+    return 0;
+  }
   let pattern = getWinPattern(b);
   if (pattern) {
     return b[pattern[0]] === COMPUTER ? WIN_SCORE - depth : depth - WIN_SCORE;
@@ -525,39 +615,55 @@ const minimax = (b, player, depth, maxDepth, alpha, beta) => {
   }
 };
 
-//3x3 is searched to the end; bigger boards look deeper as they fill up
-const searchDepth = (empty) => {
-  if (size === 3 || empty <= 10) return empty;
-  if (empty <= 13) return 6;
-  if (empty <= 17) return 5;
-  return 4;
-};
-
 const randomFrom = (list) => list[Math.floor(Math.random() * list.length)];
 
-const bestMove = () => {
+//looks one move deeper on every pass until the limit or the thinking time is reached,
+//and plays from the last pass that finished. 3x3 is always searched to the end
+const bestMove = (depthLimit) => {
   let cells = emptyCells(board);
-  let maxDepth = searchDepth(cells.length);
-  let bestScore = -Infinity;
-  let bestCells = [];
-  for (let i of cells) {
-    board[i] = COMPUTER;
-    let score = minimax(board, HUMAN, 1, maxDepth, -Infinity, Infinity);
-    board[i] = "";
-    if (score > bestScore) {
-      bestScore = score;
-      bestCells = [i];
-    } else if (score === bestScore) {
-      bestCells.push(i);
+  let best = [cells[0]];
+  searchDeadline = performance.now() + SEARCH_MS;
+  searchAborted = false;
+  for (let maxDepth = 1; maxDepth <= Math.min(depthLimit, cells.length); maxDepth++) {
+    let bestScore = -Infinity;
+    let bestCells = [];
+    let scored = [];
+    for (let i of cells) {
+      board[i] = COMPUTER;
+      //the window opens just below the best so far, so equally good moves keep exact scores
+      let score = minimax(board, HUMAN, 1, maxDepth, bestScore - 1, Infinity);
+      board[i] = "";
+      scored.push([i, score]);
+      if (score > bestScore) {
+        bestScore = score;
+        bestCells = [i];
+      } else if (score === bestScore) {
+        bestCells.push(i);
+      }
     }
+    if (searchAborted) break;
+    best = bestCells;
+    //a forced win or loss does not change by looking deeper
+    if (Math.abs(bestScore) > WIN_SCORE / 2) break;
+    //strongest moves first on the next pass, which prunes far more
+    cells = scored.sort((a, b) => b[1] - a[1]).map(([i]) => i);
   }
   //pick randomly among equally good moves so games don't repeat
-  return randomFrom(bestCells);
+  return randomFrom(best);
 };
 
+//easy takes a win and blocks half the time, medium sees two moves ahead, hard thinks as deep as it can
 const computerMove = () => {
   if (gameOver) return;
-  let index = difficulty === "hard" ? bestMove() : randomFrom(emptyCells(board));
+  let index;
+  if (difficulty === "hard") {
+    index = bestMove(Infinity);
+  } else if (difficulty === "medium") {
+    index = bestMove(2);
+  } else {
+    let block = Math.random() < 0.5 ? winningCell(HUMAN) : null;
+    index = winningCell(COMPUTER) ?? block ?? randomFrom(emptyCells(board));
+  }
   playMove(index);
 };
 
@@ -565,13 +671,14 @@ const startRound = () => {
   stopTimers();
   if (matchOver) resetScores();
   moves = [];
+  gameEl.querySelector(".win-line")?.remove();
   board = Array(size * size).fill("");
   currentPlayer = startingPlayer;
   gameOver = false;
   for (let box of boxes) {
     box.disabled = false;
     box.innerText = "";
-    box.classList.remove("mark-o", "mark-x", "win");
+    box.classList.remove("mark-o", "mark-x", "win", "hint");
   }
   msgContainer.classList.add("hide");
   beginTurn();
@@ -767,7 +874,7 @@ const syncNameInputs = () => {
   nameInputs.O.value = names.O;
   nameInputs.X.value = vsComputer ? "Computer" : online ? online.friend : names.X;
   nameInputs.X.disabled = vsComputer || online !== null;
-  nameLabels.O.innerText = online ? `Your name (${online.myMark})` : "Player O";
+  nameLabels.O.innerText = online ? `Your name (${icon(online.myMark)})` : "Player O";
   nameLabels.X.innerText = online ? "Friend" : "Player X";
   //only the host picks the board and timer
   let guest = online !== null && online.myMark === "X";
@@ -856,6 +963,25 @@ themeBtns.forEach((btn) => {
 });
 
 undoBtn.addEventListener("click", undoMove);
+hintBtn.addEventListener("click", showHint);
+
+//each device picks its own mark style, so online friends can use different ones
+const setMarks = (name) => {
+  markSet = MARK_SETS[name] ? name : "classic";
+  markBtns.forEach((btn) => btn.classList.toggle("active", btn.dataset.marks === markSet));
+  board.forEach((mark, i) => {
+    if (mark !== "") boxes[i].innerText = icon(mark);
+  });
+  syncNameInputs();
+  updateScores();
+};
+
+markBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setMarks(btn.dataset.marks);
+    save("ttt-marks", markSet);
+  });
+});
 
 //online, the friend's device repeats whatever these buttons do
 newGameBtn.addEventListener("click", () => {
@@ -939,7 +1065,7 @@ const buildFloaters = () => {
     mark.style.color = i % 2 ? "var(--color-x)" : "var(--color-o)";
     mark.style.left = `${Math.random() * 95}%`;
     mark.style.fontSize = `${1.5 + Math.random() * 3}rem`;
-    mark.style.animationDuration = `${12 + Math.random() * 14}s`;
+    mark.style.setProperty("--dur", `${12 + Math.random() * 14}s`);
     mark.style.animationDelay = `${-Math.random() * 20}s`;
     floaters.appendChild(mark);
   }
@@ -1020,17 +1146,33 @@ const addChatLine = (text, mine) => {
   chatLog.scrollTop = chatLog.scrollHeight;
 };
 
+//a message that is only an emoji or two also flies up the screen on both devices
+const showReaction = (text) => {
+  if (/[\x00-\x7F]/.test(text) || [...text].length > 4 || reducedMotion()) return;
+  for (let k = 0; k < 7; k++) {
+    let emoji = document.createElement("span");
+    emoji.className = "reaction";
+    emoji.innerText = text;
+    emoji.style.left = `${5 + Math.random() * 85}%`;
+    emoji.style.animationDelay = `${k * 0.12}s`;
+    document.body.appendChild(emoji);
+    setTimeout(() => emoji.remove(), 3600);
+  }
+};
+
 const sendChat = (text) => {
   text = text.trim().slice(0, 200);
   if (text === "" || !online || !online.connected) return;
   sendOnline({ type: "chat", text });
   addChatLine(text, true);
+  showReaction(text);
 };
 
 const receiveChat = (text) => {
   text = String(text ?? "").trim().slice(0, 200);
   if (text === "") return;
   addChatLine(text, false);
+  showReaction(text);
   if (chatBox.classList.contains("hide")) showUnread(unread + 1);
   playSound("chat");
 };
@@ -1038,6 +1180,8 @@ const receiveChat = (text) => {
 //the chat button only shows during an online match, and every match starts with an empty chat
 const setChat = (available) => {
   chatBtn.classList.toggle("hide", !available);
+  //the background comes alive while the two players are connected
+  document.body.classList.toggle("live", available);
   showUnread(0);
   if (available) {
     chatLog.innerHTML = "";
@@ -1342,6 +1486,7 @@ names.O = load("ttt-name-O", "");
 names.X = load("ttt-name-X", "");
 soundOn = load("ttt-sound", "on") === "on";
 setTheme(load("ttt-theme", "teal"));
+setMarks(load("ttt-marks", "classic"));
 syncNameInputs();
 updateSoundBtn();
 
