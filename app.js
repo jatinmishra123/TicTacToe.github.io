@@ -535,6 +535,7 @@ const finishGame = (pattern) => {
     streak = { player: "", count: 0 };
     showResult("It's a draw.", "🤝", randomFrom(DRAW_LINES), "draw");
   }
+  recordRound(pattern ? board[pattern[0]] : "draw");
   newGameBtn.innerText = matchOver ? "New Match" : "New Game";
   updateHelpers();
   updateScores();
@@ -1070,6 +1071,216 @@ const buildFloaters = () => {
     floaters.appendChild(mark);
   }
 };
+
+//players dashboard: every finished round is kept on this device (newest last)
+const HISTORY_KEY = "ttt-history";
+const HISTORY_MAX = 500;
+const MODES = {
+  pvp: { label: "2 Players", color: "var(--accent)" },
+  cpu: { label: "vs Computer", color: "var(--color-o)" },
+  online: { label: "Online", color: "var(--color-x)" },
+};
+let dash = document.querySelector("#dash");
+let dashTip = document.querySelector("#dash-tip");
+
+const loadHistory = () => {
+  try {
+    let list = JSON.parse(load(HISTORY_KEY, "[]"));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
+
+const recordRound = (winner) => {
+  let history = loadHistory();
+  history.push({
+    t: Date.now(),
+    o: playerName("O"),
+    x: playerName("X"),
+    w: winner,
+    mode: online ? "online" : vsComputer ? "cpu" : "pvp",
+    level: vsComputer ? difficulty : "",
+    size,
+  });
+  save(HISTORY_KEY, JSON.stringify(history.slice(-HISTORY_MAX)));
+};
+
+const timeAgo = (t) => {
+  let minutes = Math.floor((Date.now() - t) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  let hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(t).toLocaleDateString();
+};
+
+const startOfDay = (t) => new Date(t).setHours(0, 0, 0, 0);
+
+//builds an element with text, so player names never become HTML
+const el = (tag, className, text) => {
+  let node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.innerText = text;
+  return node;
+};
+
+const playerStats = (history) => {
+  let stats = new Map();
+  for (let round of history) {
+    for (let [mark, name] of [["O", round.o], ["X", round.x]]) {
+      let s = stats.get(name) || { name, played: 0, won: 0, lost: 0, draw: 0 };
+      s.played++;
+      if (round.w === "draw") s.draw++;
+      else if (round.w === mark) s.won++;
+      else s.lost++;
+      stats.set(name, s);
+    }
+  }
+  return [...stats.values()].sort((a, b) => b.won - a.won || b.won / b.played - a.won / a.played);
+};
+
+const showTip = (target, text) => {
+  dashTip.innerText = text;
+  dashTip.classList.remove("hide");
+  let box = target.getBoundingClientRect();
+  dashTip.style.left = `${box.left + box.width / 2}px`;
+  dashTip.style.top = `${box.top - 8}px`;
+};
+
+const hideTip = () => dashTip.classList.add("hide");
+
+//hover and keyboard focus both show the tooltip
+const withTip = (node, text) => {
+  node.tabIndex = 0;
+  node.setAttribute("aria-label", text);
+  node.addEventListener("mouseenter", () => showTip(node, text));
+  node.addEventListener("focus", () => showTip(node, text));
+  node.addEventListener("mouseleave", hideTip);
+  node.addEventListener("blur", hideTip);
+};
+
+const renderDashboard = () => {
+  let history = loadHistory();
+  let empty = history.length === 0;
+  document.querySelector("#dash-empty").classList.toggle("hide", !empty);
+  document.querySelector("#dash-body").classList.toggle("hide", empty);
+  if (empty) return;
+
+  let players = playerStats(history);
+  let today = startOfDay(Date.now());
+  let draws = history.filter((round) => round.w === "draw").length;
+  document.querySelector("#dash-games").innerText = history.length;
+  document.querySelector("#dash-players").innerText = players.length;
+  document.querySelector("#dash-today").innerText = history.filter((round) => round.t >= today).length;
+  document.querySelector("#dash-draws").innerText = `${Math.round((draws / history.length) * 100)}%`;
+
+  let leaders = document.querySelector("#dash-leaders");
+  leaders.innerHTML = "";
+  players.slice(0, 10).forEach((s, i) => {
+    let row = el("tr");
+    let rate = Math.round((s.won / s.played) * 100);
+    row.append(el("td", "dash-rank", ["🥇", "🥈", "🥉"][i] || i + 1));
+    row.append(el("td", "dash-name", s.name));
+    for (let value of [s.played, s.won, s.lost, s.draw]) row.append(el("td", "", value));
+    let rateCell = el("td", "dash-rate");
+    let meter = el("span", "dash-meter");
+    let fill = el("span");
+    fill.style.width = `${rate}%`;
+    meter.append(fill);
+    rateCell.append(meter, el("span", "", `${rate}%`));
+    row.append(rateCell);
+    leaders.append(row);
+  });
+
+  //one bar per day, oldest on the left
+  let week = document.querySelector("#dash-week");
+  week.innerHTML = "";
+  let days = [];
+  for (let k = 6; k >= 0; k--) {
+    let start = new Date(today);
+    start.setDate(start.getDate() - k);
+    let end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    let count = history.filter((round) => round.t >= start && round.t < end).length;
+    days.push({ start, count });
+  }
+  let most = Math.max(1, ...days.map((day) => day.count));
+  for (let { start, count } of days) {
+    let col = el("div", "dash-col");
+    let label = (format) => start.toLocaleDateString(undefined, format);
+    let bar = el("div", "dash-bar");
+    bar.style.height = `${(count / most) * 100}%`;
+    let track = el("div", "dash-track");
+    track.append(el("span", "dash-count", count || ""), bar);
+    withTip(track, `${label({ weekday: "long", day: "numeric", month: "short" })}: ${count} game${count === 1 ? "" : "s"}`);
+    col.append(track, el("span", "dash-day", label({ weekday: "short" })));
+    week.append(col);
+  }
+
+  //share of rounds per game mode, with a legend so colour is never the only clue
+  let split = document.querySelector("#dash-split");
+  let legend = document.querySelector("#dash-legend");
+  split.innerHTML = "";
+  legend.innerHTML = "";
+  for (let [key, { label, color }] of Object.entries(MODES)) {
+    let count = history.filter((round) => round.mode === key).length;
+    let share = Math.round((count / history.length) * 100);
+    if (count > 0) {
+      let part = el("span", "dash-part");
+      part.style.flexGrow = count;
+      part.style.backgroundColor = color;
+      withTip(part, `${label}: ${count} games (${share}%)`);
+      split.append(part);
+    }
+    let item = el("li");
+    let swatch = el("span", "dash-swatch");
+    swatch.style.backgroundColor = color;
+    item.append(swatch, el("span", "", label), el("strong", "", `${count} · ${share}%`));
+    legend.append(item);
+  }
+
+  let recent = document.querySelector("#dash-recent");
+  recent.innerHTML = "";
+  for (let round of history.slice(-10).reverse()) {
+    let item = el("li");
+    let match = el("span", "dash-match");
+    match.append(
+      el("span", round.w === "O" ? "dash-winner" : "", `${round.o}${round.w === "O" ? " 🏆" : ""}`),
+      el("span", "dash-vs", "vs"),
+      el("span", round.w === "X" ? "dash-winner" : "", `${round.x}${round.w === "X" ? " 🏆" : ""}`)
+    );
+    if (round.w === "draw") match.append(el("span", "dash-tag", "Draw"));
+    let mode = (MODES[round.mode] || MODES.pvp).label + (round.level ? ` (${round.level})` : "");
+    item.append(match, el("span", "dash-meta", `${round.size} x ${round.size} · ${mode} · ${timeAgo(round.t)}`));
+    recent.append(item);
+  }
+};
+
+const openDashboard = (open) => {
+  hideTip();
+  dash.classList.toggle("hide", !open);
+  if (open) {
+    closePanels();
+    renderDashboard();
+    document.querySelector("#dash-close").focus();
+  }
+};
+
+document.querySelector("#dash-btn").addEventListener("click", () => openDashboard(true));
+document.querySelector("#dash-close").addEventListener("click", () => openDashboard(false));
+dash.addEventListener("click", (event) => {
+  if (event.target === dash) openDashboard(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !dash.classList.contains("hide")) openDashboard(false);
+});
+dash.addEventListener("scroll", hideTip);
+document.querySelector("#dash-clear").addEventListener("click", () => {
+  if (!confirm("Delete all saved rounds from this device?")) return;
+  save(HISTORY_KEY, "[]");
+  renderDashboard();
+});
 
 const cleanName = (value) => String(value ?? "").trim().slice(0, 12);
 

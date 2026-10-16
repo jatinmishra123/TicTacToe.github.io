@@ -1220,3 +1220,385 @@ body.live .game {
   scrollbar-width: thin;
   scrollbar-color: var(--panel-light) transparent;
 }
+
+/* ---------- players dashboard ---------- */
+
+.dash {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 1.5rem 1rem;
+  background-color: rgba(6, 28, 32, 0.8);
+  overflow-y: auto;
+}
+
+.dash.hide {
+  display: none;
+}
+
+.dash-inner {
+  width: min(100%, 920px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.3rem;
+  background-color: var(--panel);
+  border-radius: 1.3rem;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+  animation: pop 0.25s ease-out;
+}
+
+.dash-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dash-head h2 {
+  font-size: 1.4rem;
+}
+
+.dash .panel-close {
+  display: block;
+  align-self: center;
+}
+
+.dash-note {
+  margin-top: -0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+}
+
+.dash-empty span {
+  font-size: 3rem;
+}
+
+#dash-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dash-empty.hide,
+#dash-body.hide {
+  display: none;
+}
+
+.dash-tiles {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+}
+
+.dash-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 0.5rem;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, var(--bg)), var(--bg));
+  border-radius: 1rem;
+}
+
+.dash-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+.dash-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dash-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  background-color: var(--bg);
+  border-radius: 1rem;
+  text-align: left;
+}
+
+.dash-wide {
+  grid-column: 1 / -1;
+}
+
+.dash-card h3 {
+  font-size: 1rem;
+}
+
+.dash-table-wrap {
+  overflow-x: auto;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-table th {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  border-bottom: 1px solid var(--panel-light);
+}
+
+.dash-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-light) 50%, transparent);
+  white-space: nowrap;
+}
+
+.dash-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dash-table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--panel-light) 40%, transparent);
+}
+
+.dash-name {
+  font-weight: 600;
+}
+
+.dash-rate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-meter {
+  width: 4.5rem;
+  height: 0.45rem;
+  background-color: var(--panel);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dash-meter span {
+  display: block;
+  height: 100%;
+  background-color: var(--accent);
+  border-radius: 999px;
+}
+
+.dash-bars {
+  height: 150px;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.dash-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* the whole column is the hover target, not just the bar */
+.dash-track {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  border-bottom: 1px solid var(--panel-light);
+  border-radius: 0.3rem 0.3rem 0 0;
+  cursor: default;
+  outline: none;
+}
+
+.dash-track:hover,
+.dash-track:focus-visible {
+  background-color: color-mix(in srgb, var(--panel-light) 45%, transparent);
+}
+
+.dash-bar {
+  width: min(70%, 2rem);
+  min-height: 0;
+  background-color: var(--accent);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.4s ease-out;
+}
+
+.dash-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.dash-day {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.dash-split {
+  height: 1.4rem;
+  display: flex;
+  gap: 2px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dash-part {
+  min-width: 4px;
+  outline: none;
+  cursor: default;
+}
+
+.dash-part:hover,
+.dash-part:focus-visible {
+  filter: brightness(1.15);
+}
+
+.dash-legend {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.dash-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-legend strong {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.25rem;
+}
+
+.dash-recent {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-recent li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.2rem 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-light) 50%, transparent);
+}
+
+.dash-recent li:last-child {
+  border-bottom: none;
+}
+
+.dash-match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dash-winner {
+  font-weight: 700;
+}
+
+.dash-vs {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dash-tag {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background-color: var(--panel-light);
+  border-radius: 999px;
+}
+
+.dash-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dash-tip {
+  position: fixed;
+  z-index: 12;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  background-color: var(--panel-light);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.dash-tip.hide {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .dash {
+    padding: 0.6rem;
+  }
+
+  .dash-inner {
+    padding: 1rem;
+  }
+
+  .dash-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* small phones: the top bar has five buttons, keep them on one line */
+@media (max-width: 420px) {
+  .topbar {
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+  }
+
+  .topbar-actions {
+    gap: 0.3rem;
+  }
+
+  .online-btn {
+    padding: 0.45rem 0.6rem;
+  }
+}

@@ -75,6 +75,7 @@
       <div class="topbar-actions">
         <button id="online-btn" class="online-btn">🌐 Play Online</button>
         <button id="chat-btn" class="icon-btn chat-btn hide" aria-label="Chat">💬</button>
+        <button id="dash-btn" class="icon-btn" aria-label="Players dashboard" title="Dashboard">📊</button>
         <button class="icon-btn panel-btn" data-panel="about-panel" aria-label="About me">👤</button>
         <button id="sound-btn" class="icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>
       </div>
@@ -262,6 +263,64 @@
         <input id="chat-input" type="text" maxlength="200" placeholder="Type a message" autocomplete="off" aria-label="Message" />
         <button class="btn btn-primary">Send</button>
       </form>
+    </div>
+
+    <!-- players dashboard: built from the rounds saved on this device, see renderDashboard in app.js -->
+    <div class="dash hide" id="dash" role="dialog" aria-modal="true" aria-labelledby="dash-title">
+      <div class="dash-inner">
+        <div class="dash-head">
+          <h2 id="dash-title">📊 Players Dashboard</h2>
+          <button id="dash-close" class="panel-close" aria-label="Close dashboard">✕</button>
+        </div>
+        <p class="dash-note">Every finished round played on this device.</p>
+
+        <div class="dash-empty hide" id="dash-empty">
+          <span aria-hidden="true">🎮</span>
+          <p>No rounds yet. Finish a game and your players show up here.</p>
+        </div>
+
+        <div id="dash-body">
+          <div class="dash-tiles">
+            <div class="dash-tile"><span class="dash-value" id="dash-games">0</span><span class="dash-label">Games played</span></div>
+            <div class="dash-tile"><span class="dash-value" id="dash-players">0</span><span class="dash-label">Players</span></div>
+            <div class="dash-tile"><span class="dash-value" id="dash-today">0</span><span class="dash-label">Games today</span></div>
+            <div class="dash-tile"><span class="dash-value" id="dash-draws">0%</span><span class="dash-label">Draw rate</span></div>
+          </div>
+
+          <div class="dash-grid">
+            <section class="dash-card dash-wide">
+              <h3>🏆 Leaderboard</h3>
+              <div class="dash-table-wrap">
+                <table class="dash-table">
+                  <thead>
+                    <tr><th>#</th><th>Player</th><th>Played</th><th>Won</th><th>Lost</th><th>Draw</th><th>Win rate</th></tr>
+                  </thead>
+                  <tbody id="dash-leaders"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="dash-card">
+              <h3>📅 Games, last 7 days</h3>
+              <div class="dash-bars" id="dash-week"></div>
+            </section>
+
+            <section class="dash-card">
+              <h3>🎲 How people play</h3>
+              <div class="dash-split" id="dash-split"></div>
+              <ul class="dash-legend" id="dash-legend"></ul>
+            </section>
+
+            <section class="dash-card dash-wide">
+              <h3>🕒 Recent matches</h3>
+              <ul class="dash-recent" id="dash-recent"></ul>
+            </section>
+          </div>
+
+          <button id="dash-clear" class="btn btn-ghost">Clear history</button>
+        </div>
+      </div>
+      <div class="dash-tip hide" id="dash-tip" role="tooltip"></div>
     </div>
 
     <div class="backdrop hide"></div>
